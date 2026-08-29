@@ -75,6 +75,40 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
   if (!existing) return fail("Event not found.", 404);
 
   const body = await readJson(req);
+
+  /* ---- Start round ------------------------------------------------------
+     Its own action rather than a field, because one press means two things:
+     open the entries, and give the round the deadline the question set asks
+     for. An untimed set has no deadline to give, so Start there is simply
+     "open", which is what the button has always done.
+
+     Handled before the partial update below, so starting a round cannot happen
+     by accident while somebody is renaming an event.
+
+     The deadline is worked out here rather than in SQL because every reader
+     compares it against its own clock — the browser's, or this server's — and
+     never against the database's. Computing it the same way it is read keeps
+     one clock in the story instead of two. */
+  if (body.startRound === true) {
+    const [limit] = (await sql`
+      SELECT time_limit_seconds FROM question_sets
+       WHERE id = ${existing.question_set_id} AND is_deleted = false
+       LIMIT 1`) as unknown as { time_limit_seconds: number | null }[];
+    const seconds = limit?.time_limit_seconds ?? null;
+    const closesAt =
+      seconds === null ? null : new Date(Date.now() + seconds * 1000).toISOString();
+
+    const [row] = (await sql`
+      UPDATE organizations
+         SET is_open = true, closes_at = ${closesAt}
+       WHERE id = ${id} AND is_deleted = false
+      RETURNING *`) as unknown as Record<string, unknown>[];
+    if (!row) return fail("Event not found.", 404);
+
+    await audit(admin, "organization.startRound", existing.slug, { id, seconds });
+    return ok({ organization: row });
+  }
+
   const v = organizationPatchSchema.parse(body);
 
   // `undefined` means "not sent"; for the two nullable columns, null is a real
@@ -101,6 +135,11 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
     requireEmail: pick(v.requireEmail, existing.require_email),
     collectClass: pick(v.collectClass, existing.collect_class),
     prizeNote: pick(v.prizeNote, existing.prize_note),
+    // Throwing the switch by hand ends whatever round was running, in either
+    // direction: closing must not leave a deadline ticking behind it, and
+    // reopening by hand means "open until I say otherwise". Any other edit
+    // leaves the running round alone.
+    closesAt: sent("isOpen") ? null : existing.closes_at,
   };
 
   const [row] = (await sql`
@@ -109,6 +148,7 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
       contact_name = ${next.contactName}, contact_phone = ${next.contactPhone},
       event_date = ${next.eventDate}, notes = ${next.notes},
       question_set_id = ${next.questionSetId}, is_open = ${next.isOpen},
+      closes_at = ${next.closesAt},
       question_count = ${next.questionCount},
       shuffle_questions = ${next.shuffleQuestions}, shuffle_options = ${next.shuffleOptions},
       allow_retake = ${next.allowRetake}, show_score = ${next.showScore},

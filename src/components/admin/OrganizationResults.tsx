@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errText } from "@/lib/client";
+import {
+  acceptingEntries,
+  closesInMs,
+  roundEnded,
+  refreshMs,
+  REFRESH_IDLE_MS,
+} from "@/lib/eventWindow";
 import {
   PageHead,
   Stats,
@@ -19,6 +26,7 @@ import {
 import { OrganizationForm, draftFromOrganization, type OrganizationDraft, type SetOption } from "./OrganizationForm";
 import type { Organization } from "@/lib/types";
 import { QuestionText } from "@/components/QuestionText";
+import { RunPanel, fmtLeft } from "./RunPanel";
 
 /* -------------------------------- shapes --------------------------------- */
 
@@ -69,6 +77,7 @@ type Detail = {
     registered: number;
     completed: number;
     in_progress: number;
+    answering: number;
     not_finished: number;
     avg_score: number;
     top_score: number;
@@ -80,7 +89,7 @@ type Detail = {
   notFinished: Pending[];
 };
 
-type Tab = "results" | "analysis" | "pending" | "settings";
+type Tab = "run" | "results" | "analysis" | "pending" | "settings";
 
 /* ================================ view ================================== */
 
@@ -97,11 +106,17 @@ export function OrganizationResults({
 }) {
   const [data, setData] = useState<Detail | null>(null);
   const [sets, setSets] = useState<SetOption[]>([]);
-  const [tab, setTab] = useState<Tab>("results");
+  // The run screen opens first: on the day, starting the round is what this
+  // page is for. Reading results at a desk is one click away.
+  const [tab, setTab] = useState<Tab>("run");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
+
+  // Only ticks while a round has a deadline, so the header countdown stays
+  // honest without the page re-rendering every second for no reason.
+  const [now, setNow] = useState(() => Date.now());
 
   const [draft, setDraft] = useState<OrganizationDraft | null>(null);
   const [openAttempt, setOpenAttempt] = useState<Result | null>(null);
@@ -139,10 +154,92 @@ export function OrganizationResults({
     return () => clearInterval(t);
   }, [autoRefresh, load]);
 
+  /**
+   * The run screen is watched rather than read, so it refreshes itself without
+   * anybody ticking a box. It asks the `/live` route, not the full detail one:
+   * five numbers and five names instead of the whole results table, the
+   * question analysis and the did-not-finish list — and one database round trip
+   * instead of five.
+   *
+   * Paced by `refreshMs`, shared with the standalone screen: quickly only while
+   * a round is counting down or somebody is still answering. An event sitting
+   * open with nothing running changes no faster than a person can register.
+   * Nothing polls at all while the browser tab is hidden.
+   */
+  useEffect(() => {
+    if (tab !== "run") return;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = async () => {
+      if (!document.hidden) {
+        try {
+          const live = await api<{ organization: Organization; summary: Detail["summary"]; top: Result[] }>(
+            `/api/admin/organizations/${organizationId}/live`,
+          );
+          // Patch in only what the run screen draws; the other tabs keep the
+          // data the last full load gave them.
+          setData((cur) =>
+            cur
+              ? {
+                  ...cur,
+                  organization: { ...cur.organization, ...live.organization },
+                  summary: { ...cur.summary, ...live.summary },
+                  results: live.top.length ? live.top : cur.results,
+                }
+              : cur,
+          );
+        } catch {
+          /* a blip on hall wifi is not worth an error banner on this screen */
+        }
+      }
+      timer = setTimeout(tick, paceRef.current);
+    };
+    void tick();
+    return () => clearTimeout(timer);
+  }, [tab, organizationId]);
+
+  // Read inside the polling loop, so changing pace never restarts it.
+  const paceRef = useRef(REFRESH_IDLE_MS);
+  paceRef.current = data
+    ? refreshMs(data.organization, data.summary.answering, now)
+    : REFRESH_IDLE_MS;
+
+  const closesAt = data?.organization.closes_at ?? null;
+  useEffect(() => {
+    if (!closesAt) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [closesAt]);
+
   const shareUrl = useMemo(
     () => (data ? `${typeof window === "undefined" ? "" : window.location.origin}/s/${data.organization.slug}` : ""),
     [data],
   );
+
+  /**
+   * Opens the entries and, when the question set is timed, gives the round that
+   * long to run. Sent as its own action so the server works out the deadline —
+   * a room's timing is not something to hand to a browser clock.
+   */
+  async function startRound() {
+    if (!data) return;
+    try {
+      const res = await api<{ organization: { closes_at: string | null } }>(
+        `/api/admin/organizations/${organizationId}`,
+        { method: "PATCH", body: { startRound: true } },
+      );
+      const left = closesInMs(res.organization);
+      setNotice(
+        left === null
+          ? "Entries are open. This set has no time limit, so close them yourself when you are done."
+          : `Round started — entries close in ${Math.round(left / 60000)} minutes.`,
+      );
+      void load();
+    } catch (e) {
+      setError(errText(e));
+    }
+  }
 
   async function toggleOpen() {
     if (!data || !draft) return;
@@ -171,6 +268,10 @@ export function OrganizationResults({
 
   const s = data.organization;
   const podium = data.results.slice(0, 3);
+  // One rule decides this, shared with the server and the student's page.
+  const live = acceptingEntries(s, now);
+  const ended = roundEnded(s, now);
+  const leftMs = closesInMs(s, now);
 
   return (
     <>
@@ -182,7 +283,15 @@ export function OrganizationResults({
             Code <code className="rounded bg-white px-1.5 py-0.5 text-plum">{s.slug}</code>
             {s.city ? ` · ${s.city}` : ""}
             {s.event_date ? ` · ${when(s.event_date, false)}` : ""} ·{" "}
-            <Chip tone={s.is_open ? "good" : "neutral"}>{s.is_open ? "Open" : "Closed"}</Chip>
+            <Chip tone={live ? "good" : "neutral"}>
+              {live
+                ? leftMs === null
+                  ? "Open"
+                  : `Open · closes in ${fmtLeft(leftMs)}`
+                : ended
+                  ? "Round over"
+                  : "Closed"}
+            </Chip>
           </>
         }
         actions={
@@ -211,9 +320,18 @@ export function OrganizationResults({
               Download Excel
             </a>
             {canWrite ? (
-              <button className="btn-ghost btn-sm" onClick={() => void toggleOpen()}>
-                {s.is_open ? "Close entries" : "Reopen entries"}
-              </button>
+              <>
+                {/* Start is the one that runs a round. The switch beside it is
+                    still there for opening or closing by hand. */}
+                {live && leftMs !== null ? null : (
+                  <button className="btn-primary btn-sm" onClick={() => void startRound()}>
+                    {ended ? "Start another round" : "Start round"}
+                  </button>
+                )}
+                <button className="btn-ghost btn-sm" onClick={() => void toggleOpen()}>
+                  {live ? "Close entries" : "Reopen entries"}
+                </button>
+              </>
             ) : null}
           </>
         }
@@ -275,6 +393,7 @@ export function OrganizationResults({
       <div className="mb-3 flex flex-wrap gap-1.5">
         {(
           [
+            ["run", "Run the quiz"],
             ["results", `Results (${data.results.length})`],
             ["analysis", `Question analysis (${data.analysis.length})`],
             ["pending", `Did not finish (${data.notFinished.length})`],
@@ -435,6 +554,26 @@ export function OrganizationResults({
             </>
           )}
         </div>
+      ) : null}
+
+      {/* -------------------------------- run ------------------------------ */}
+      {tab === "run" ? (
+        <RunPanel
+          headerLink={
+            <Link href={`/admin/organizations/${s.slug}/dashboard`} className="linkish">
+              Fullscreen
+            </Link>
+          }
+          summary={data.summary}
+          top={data.results.slice(0, 5)}
+          live={live}
+          ended={ended}
+          leftMs={leftMs}
+          canWrite={canWrite}
+          onStart={() => void startRound()}
+          onClose={() => void toggleOpen()}
+          shareUrl={shareUrl}
+        />
       ) : null}
 
       {/* ------------------------------ pending ---------------------------- */}

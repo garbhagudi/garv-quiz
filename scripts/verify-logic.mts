@@ -20,6 +20,15 @@ import {
 } from "../src/lib/questionText.ts";
 import { nameMatches } from "../src/lib/identity.ts";
 import {
+  acceptingEntries,
+  closesInMs,
+  roundEnded,
+  roundRunning,
+  refreshMs,
+  REFRESH_WATCHING_MS,
+  REFRESH_IDLE_MS,
+} from "../src/lib/eventWindow.ts";
+import {
   slugify,
   normalizePhone,
   phoneField,
@@ -42,6 +51,10 @@ function check(label: string, fn: () => void) {
     failures.push(`${label}: ${(e as Error).message}`);
     console.log(`  FAIL  ${label}\n        ${(e as Error).message}`);
   }
+}
+
+function assert(cond: boolean, message: string) {
+  if (!cond) throw new Error(message);
 }
 
 function eq(actual: unknown, expected: unknown, what = "value") {
@@ -627,6 +640,87 @@ check("nameMatches refuses a different student", () => {
   ]) {
     if (nameMatches(given, stored)) throw new Error(`accepted "${given}" against "${stored}"`);
   }
+});
+
+/* ------------------------- when a round is running ----------------------- */
+
+const T0 = 1_700_000_000_000;
+const at = (msFromNow: number) => new Date(T0 + msFromNow).toISOString();
+
+check("an event with no deadline is decided by the switch alone", () => {
+  eq(acceptingEntries({ is_open: true, closes_at: null }, T0), true);
+  eq(acceptingEntries({ is_open: false, closes_at: null }, T0), false);
+  eq(closesInMs({ closes_at: null }, T0), null, "no deadline to count down");
+  eq(roundEnded({ is_open: true, closes_at: null }, T0), false, "nothing to end");
+});
+
+check("a running round is open until its deadline, then closed", () => {
+  const round = { is_open: true, closes_at: at(60_000) };
+  eq(acceptingEntries(round, T0), true, "at the start");
+  eq(acceptingEntries(round, T0 + 59_999), true, "a millisecond before");
+  eq(acceptingEntries(round, T0 + 60_000), false, "exactly on the deadline");
+  eq(acceptingEntries(round, T0 + 60_001), false, "after");
+});
+
+check("the countdown reaches zero and stops there", () => {
+  const round = { closes_at: at(10_000) };
+  eq(closesInMs(round, T0), 10_000);
+  eq(closesInMs(round, T0 + 9_000), 1_000);
+  eq(closesInMs(round, T0 + 10_000), 0, "on the deadline");
+  eq(closesInMs(round, T0 + 999_999), 0, "long after — never negative");
+});
+
+check("closing by hand beats a deadline that has not arrived", () => {
+  // The host pressed Close with four minutes still on the clock.
+  const round = { is_open: false, closes_at: at(240_000) };
+  eq(acceptingEntries(round, T0), false, "accepting");
+  eq(roundEnded(round, T0), false, "not 'round over' — somebody closed it");
+});
+
+check("a round that ran out is named apart from one closed by hand", () => {
+  // Worth separating on screen: "Closed" alone reads as though somebody
+  // pressed the button.
+  eq(roundEnded({ is_open: true, closes_at: at(-1) }, T0), true, "ran out");
+  eq(roundEnded({ is_open: false, closes_at: at(-1) }, T0), false, "closed by hand");
+  eq(roundEnded({ is_open: false, closes_at: null }, T0), false, "closed, never timed");
+});
+
+check("an unusable deadline is treated as no deadline, not as closed", () => {
+  // A malformed value must never lock a room out of its own quiz.
+  for (const closes_at of ["", "not a date", "0000-00-00"]) {
+    eq(closesInMs({ closes_at }, T0), null, `closesInMs for ${JSON.stringify(closes_at)}`);
+    eq(
+      acceptingEntries({ is_open: true, closes_at }, T0),
+      true,
+      `acceptingEntries for ${JSON.stringify(closes_at)}`,
+    );
+  }
+  eq(closesInMs({ closes_at: undefined }, T0), null, "absent");
+});
+
+check("a round is only 'running' while it is counting down", () => {
+  eq(roundRunning({ is_open: true, closes_at: at(60_000) }, T0), true, "counting down");
+  eq(roundRunning({ is_open: true, closes_at: at(-1) }, T0), false, "ran out");
+  eq(roundRunning({ is_open: false, closes_at: at(60_000) }, T0), false, "closed by hand");
+  // The one that mattered: an event simply left open is not a running round.
+  eq(roundRunning({ is_open: true, closes_at: null }, T0), false, "open, untimed");
+});
+
+check("the run screen only polls quickly when there is something to watch", () => {
+  const fast = REFRESH_WATCHING_MS;
+  const idle = REFRESH_IDLE_MS;
+
+  // The bug: an event sitting open with no round polled every five seconds.
+  eq(refreshMs({ is_open: true, closes_at: null }, 0, T0), idle, "open, nothing running");
+  eq(refreshMs({ is_open: false, closes_at: null }, 0, T0), idle, "closed");
+  eq(refreshMs({ is_open: true, closes_at: at(-1) }, 0, T0), idle, "round over, nobody left");
+
+  eq(refreshMs({ is_open: true, closes_at: at(60_000) }, 0, T0), fast, "counting down");
+  // Still worth watching after the round ends, while people are finishing.
+  eq(refreshMs({ is_open: true, closes_at: at(-1) }, 3, T0), fast, "3 still answering");
+  eq(refreshMs({ is_open: false, closes_at: null }, 2, T0), fast, "closed, 2 still answering");
+
+  assert(idle > fast, "the idle pace should be slower than the watching one");
 });
 
 /* ------------------------------ formatting ------------------------------- */

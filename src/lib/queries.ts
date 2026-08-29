@@ -34,6 +34,27 @@ export async function getOrganizationById(
 }
 
 /**
+ * Resolve an event from whatever is in the URL: the numeric id the admin list
+ * links with, or the code a host would type from memory. Lets a dashboard live
+ * at /admin/organizations/garv/dashboard rather than at an id nobody knows.
+ */
+export async function getOrganizationByIdOrSlug(
+  key: string,
+  includeDeleted = false,
+): Promise<Organization | null> {
+  const asId = Number(key);
+  if (Number.isInteger(asId) && asId > 0) {
+    const byId = await getOrganizationById(asId, includeDeleted);
+    if (byId) return byId;
+  }
+  const rows = (await sql`
+    SELECT * FROM organizations
+     WHERE lower(slug) = lower(${key}) AND (${includeDeleted} OR is_deleted = false)
+     LIMIT 1`) as unknown as Organization[];
+  return rows[0] ?? null;
+}
+
+/**
  * One row per student — their best attempt — ranked. Retakes never let somebody
  * appear twice on the board; the admin table still shows every attempt.
  */
@@ -124,6 +145,21 @@ export async function organizationSummary(organizationId: number) {
       -- are answering"), but it counts attempts, not people.
       (SELECT count(*)::int FROM attempts WHERE organization_id = ${organizationId}
          AND status = 'in_progress' AND is_deleted = false)                            AS in_progress,
+      -- Still answering *right now*, for the live dashboard. An attempt is only
+      -- counted while it could plausibly still be open: a student whose own
+      -- countdown has expired is not coming back, and a host waiting on them
+      -- would wait for ever. Untimed sets fall back to an hour, which is the
+      -- same judgement made loosely rather than exactly.
+      (SELECT count(*)::int FROM attempts a
+        WHERE a.organization_id = ${organizationId} AND a.status = 'in_progress'
+          AND a.is_deleted = false
+          AND a.started_at > now() - (
+                COALESCE(
+                  (SELECT qs.time_limit_seconds FROM organizations o
+                     JOIN question_sets qs ON qs.id = o.question_set_id
+                    WHERE o.id = ${organizationId}),
+                  3600
+                )::text || ' seconds')::interval)                                 AS answering,
       -- People who registered and never finished a run. This is the number the
       -- panel shows and the "Did not finish" tab lists, so the two always agree.
       -- One student who starts three times is one person here and three above.
@@ -148,6 +184,7 @@ export async function organizationSummary(organizationId: number) {
     registered: number;
     completed: number;
     in_progress: number;
+    answering: number;
     not_finished: number;
     avg_score: number;
     top_score: number;

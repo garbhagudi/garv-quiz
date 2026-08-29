@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { sql } from "@/lib/db";
 import { getOrganizationBySlug } from "@/lib/queries";
 import { Stage } from "@/components/Stage";
+import { acceptingEntries } from "@/lib/eventWindow";
 import { QuizFlow } from "./QuizFlow";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ export default async function OrganizationPage({ params }: Props) {
       <QuizFlow
         slug={organization.slug}
         organizationName={organization.name}
-        isOpen={organization.is_open && asked > 0}
+        isOpen={acceptingEntries(organization) && asked > 0}
         hasQuestions={asked > 0}
         questionCount={asked}
         played={counts.played}

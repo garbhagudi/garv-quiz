@@ -62,6 +62,8 @@ export type Organization = {
   notes: string;
   question_set_id: number | null;
   is_open: boolean;
+  /** Deadline the current round was started with; null when it has no end. */
+  closes_at: string | null;
   question_count: number | null;
   shuffle_questions: boolean;
   shuffle_options: boolean;
@@ -81,6 +83,7 @@ export type OrganizationPublic = Pick<
   | "name"
   | "city"
   | "is_open"
+  | "closes_at"
   | "show_leaderboard"
   | "require_email"
   | "collect_class"

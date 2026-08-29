@@ -391,3 +391,23 @@ ALTER TABLE question_sets ADD CONSTRAINT question_sets_time_limit_sane CHECK (
   time_limit_seconds IS NULL
   OR (time_limit_seconds >= 30 AND time_limit_seconds <= 6 * 60 * 60)
 );
+
+-- ===========================================================================
+--  A round with an end of its own
+--
+--  `is_open` is the switch a host throws by hand. `closes_at` is the deadline a
+--  round was started with: press Start and the event opens for as long as the
+--  question set's time limit says, then stops accepting entries on its own.
+--
+--  NULL means no deadline — the event stays open until somebody closes it,
+--  which is how every event behaved before this and how an untimed set still
+--  behaves. An event is accepting entries when `is_open` is true AND the
+--  deadline is either absent or still ahead; see src/lib/eventWindow.ts, which
+--  is the one place that decides it.
+--
+--  Nothing flips `is_open` when the deadline passes. There is no job to run it,
+--  and there does not need to be: a past deadline already means closed
+--  everywhere it is read, and pressing Start again simply sets a new one.
+-- ===========================================================================
+
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS closes_at timestamptz;

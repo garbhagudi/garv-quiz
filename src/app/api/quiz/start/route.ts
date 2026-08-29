@@ -5,6 +5,7 @@ import { buildServedQuestions, stripAnswers } from "@/lib/quiz";
 import { registerSchema, emailField, normalizePhone } from "@/lib/validate";
 import { createParticipantSession } from "@/lib/session";
 import { nameMatches } from "@/lib/identity";
+import { acceptingEntries } from "@/lib/eventWindow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,9 @@ export const POST = route(async (req: Request) => {
 
   const organization = await getOrganizationBySlug(input.slug);
   if (!organization) return fail("No event found with that code.", 404, "slug");
-  if (!organization.is_open)
+  // Closed by hand, or the round ran out — the student cannot tell the
+  // difference and does not need to.
+  if (!acceptingEntries(organization))
     return fail("This quiz is closed.", 403);
 
   // Email is optional per event, but validated when it is required or supplied.

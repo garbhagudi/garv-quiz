@@ -2,6 +2,7 @@ import { sql } from "@/lib/db";
 import { ok, fail, route } from "@/lib/api";
 import { getOrganizationBySlug } from "@/lib/queries";
 import { slugify } from "@/lib/validate";
+import { acceptingEntries, closesInMs } from "@/lib/eventWindow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +40,8 @@ export const GET = route(async (req: Request) => {
       slug: organization.slug,
       name: organization.name,
       city: organization.city,
-      isOpen: organization.is_open && asked > 0,
+      isOpen: acceptingEntries(organization) && asked > 0,
+      closesInMs: closesInMs(organization),
       hasQuestions: asked > 0,
       questionCount: asked,
       played: counts.played,

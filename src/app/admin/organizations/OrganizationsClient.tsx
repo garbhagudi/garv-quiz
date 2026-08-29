@@ -175,6 +175,12 @@ export function OrganizationsClient({ canWrite }: { canWrite: boolean }) {
                       {when(s.created_at, false)}
                     </td>
                     <td className="whitespace-nowrap text-right">
+                      <Link
+                        href={`/admin/organizations/${s.slug}/dashboard`}
+                        className="linkish mr-3"
+                      >
+                        Live
+                      </Link>
                       <Link href={`/admin/organizations/${s.id}`} className="linkish mr-3">
                         Results
                       </Link>

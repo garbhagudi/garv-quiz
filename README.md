@@ -73,6 +73,81 @@ comes from the attempt's own snapshot, not from `answers.points`, which records
 what was *earned* and is 0 on a wrong answer — so it cannot say what the question
 was worth.
 
+**Each event has a screen for the day itself.** The organization page opens on
+**Run the quiz**, which is deliberately the narrowest tab: a large countdown,
+Start round and Close entries, three numbers — registered, still answering,
+submitted — and the leaders so far. Nothing else. It answers the four questions
+a host actually asks standing in front of a room, and refreshes itself every
+five seconds without anybody ticking a box. The full results table, the
+per-question analysis, the *Did not finish* list and the settings are all one
+tab away, where they belong.
+
+The screen polls, and does so deliberately. It asks a route of its own,
+`/api/admin/organizations/:id/live`, which answers in **one** database round trip
+with four numbers and at most five names — around 300 bytes that barely grows as
+the room fills. The full detail route behind the other tabs takes five round
+trips and carries the whole results table, the question analysis and the
+did-not-finish list, which is fine to open once and wasteful every few seconds.
+It polls **only when there is something to watch**: every 5 seconds while a
+round is counting down or people are still mid-quiz, every 20 otherwise, and not
+at all while the browser tab is hidden — refreshing the moment it comes back.
+An event sitting open with no round running changes no faster than somebody can
+register, so watching it closely is all cost and no information. One rule,
+`refreshMs` in `src/lib/eventWindow.ts`, paces both the tab and the standalone
+screen; being open is deliberately *not* the same thing as running a round.
+
+None of that load comes from the room, incidentally: a student's phone calls the
+server exactly twice, once to start and once to submit, and never polls. Two
+staff screens watching a dashboard are the only thing on this timer.
+
+It has a URL of its own: **`/organizations/<code>/dashboard`** — or the full
+`/admin/organizations/<code>/dashboard`, which is where the short one redirects
+to. Addressed by the event's code rather than a database id, so a host can type
+it from memory and leave it open on a second screen for the whole session. The
+organization page answers to the code too, so `/admin/organizations/garv` and
+`/admin/organizations/5` are the same page.
+
+The short URL is a redirect rather than a second copy of the screen: the real
+one lives under `/admin`, where the middleware bounces an anonymous visitor to
+sign-in before any page code runs, and serving it from outside that guard would
+mean two routes to keep in step with only one of them protected. `organizations`
+is a reserved code, so it can never shadow a real event.
+
+"Still answering" is not simply "attempts left open". An attempt only counts
+while it could plausibly still be running — its own countdown has not expired —
+because a host watching that number is waiting for it to reach zero, and
+somebody who registered and wandered off is never coming back. Once the round
+ends, that is the one thing the screen says out loud: *the round is over, but
+three students are still answering*, so nobody announces a winner too early.
+Those students keep their own clock and their answers still count.
+
+**A round can start and end itself.** An event has one switch a host throws by
+hand — *Close entries* / *Reopen entries* — and, beside it, **Start round**.
+Start opens the entries and gives the round as long as the question set's time
+limit says: press it, the room plays, and entries stop on their own. Press it
+again for the next round. A set with no time limit has no deadline to give, so
+Start there simply opens the event, which is what it always did.
+
+An event is taking entries when the switch is on **and** the deadline is either
+absent or still ahead. Nothing rewrites the switch when a deadline passes: a
+past deadline already means closed to every reader, so there is no job to run
+and no window where the database and the screen disagree. `src/lib/eventWindow.ts`
+is the only place that decides it, and being free of any database import it is
+the same rule in the browser, on the server, and in the tests — the countdown in
+the admin header ticks off exactly what `/api/quiz/start` turns a student away
+by. A malformed deadline is treated as no deadline rather than as closed, so a
+bad value can never lock a room out of its own quiz.
+
+Closing or reopening by hand clears the deadline, in both directions: closing
+should not leave a round ticking behind it, and reopening by hand means "open
+until I say otherwise". Any other edit leaves a running round alone, so renaming
+an event mid-round does not end it.
+
+**Running out never costs anybody their answers.** The deadline stops *new*
+entries. A student already playing keeps their own countdown and can still
+submit — the same as the manual close has always done — so the room empties out
+over the following minute instead of everyone being cut off mid-question.
+
 **A quiz can be timed.** A question set carries an optional whole-quiz limit in
 minutes (blank means untimed, which is what every set is until somebody fills it
 in). It lives on the *set* rather than on the event, so the duration travels with
@@ -248,6 +323,7 @@ src/app/page.tsx                enter an event code
 src/app/s/[slug]/               the quiz, student dashboard, staff door
 src/app/admin/                  overview, organizations, questions, people, team, log
 src/app/api/                    the API
+src/lib/eventWindow.ts          decides whether an event is taking entries
 src/lib/identity.ts             decides whether two registrations are one student
 src/lib/questionText.ts         turns question wording into blocks (lists, text)
 src/components/QuestionText.tsx draws those blocks, everywhere a question appears
@@ -261,7 +337,8 @@ admin_users     staff logins and roles
 question_sets   a reusable bank; one set can serve many organizations,
                 and carries the optional whole-quiz time limit
 questions       text, options (jsonb), the answer key, a picture, points, is_active
-organizations   one event: slug, question set, and all its settings
+organizations   one event: slug, question set, settings, and the deadline
+                of the round it is running
 participants    one per student per event; unique on phone, and on email
 attempts        one run: the served snapshot, score, timings, status
 answers         one row per question answered, with a text snapshot
@@ -356,8 +433,8 @@ production, so there is no class of bug that only appears in one of them.
 ### Tests
 
 ```bash
-npm run verify   # 160 checks
-npm run e2e      # 139 checks
+npm run verify   # 168 checks
+npm run e2e      # 161 checks
 ```
 
 - **`verify:sql`** runs the real schema and every non-trivial query against

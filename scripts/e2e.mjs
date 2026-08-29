@@ -1505,6 +1505,435 @@ try {
     return `${target.name} dropped off; ${after.data.summary.in_progress} open attempts remain`;
   });
 
+  section("Starting and ending a round");
+
+  // Its own set and event again, and a short limit so a round can really run out
+  // inside the suite rather than being simulated.
+  let roundSetId, roundOrgId;
+  await test("a timed set and an event to run rounds on", async () => {
+    const set = await admin.call("/api/admin/sets", {
+      method: "POST",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: 1 },
+    });
+    eq(set.status, 201, "set status");
+    roundSetId = set.data.set.id;
+    eq(set.data.set.time_limit_seconds, 60, "one minute");
+
+    for (let i = 0; i < 2; i++) {
+      const { status } = await admin.call("/api/admin/questions", {
+        method: "POST",
+        body: {
+          setId: roundSetId,
+          text: `Round question ${i + 1}: which option is right?`,
+          options: [`r${i}a`, `right-${i}`],
+          correctIndexes: [1],
+        },
+      });
+      eq(status, 201, `question ${i + 1}`);
+    }
+
+    const org = await admin.call("/api/admin/organizations", {
+      method: "POST",
+      body: {
+        name: "Round College",
+        slug: "round-2026",
+        questionSetId: roundSetId,
+        requireEmail: false,
+        isOpen: false,
+      },
+    });
+    eq(org.status, 201, "event status");
+    roundOrgId = org.data.organization.id;
+    eq(org.data.organization.closes_at, null, "a new event has no deadline");
+    return `set #${roundSetId} (1 min), event "round-2026", closed`;
+  });
+
+  await test("while it is closed, nobody can register", async () => {
+    const { status, data } = await client("round-early").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Too Early", phone: "9863000001" },
+    });
+    eq(status, 403, "status");
+    assert(data.error.includes("closed"), `message was: ${data.error}`);
+  });
+
+  await test("Start opens it and gives the round the set's limit", async () => {
+    const { status, data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    eq(status, 200, "status");
+    eq(data.organization.is_open, true, "is_open");
+    assert(data.organization.closes_at, "no deadline was set");
+
+    const left = new Date(data.organization.closes_at).getTime() - Date.now();
+    assert(left > 50_000 && left <= 60_000, `deadline is ${Math.round(left / 1000)}s away, expected ~60`);
+
+    // And the public page agrees.
+    const pub = await client("round-pub").call("/api/public/organization?code=round-2026");
+    eq(pub.data.organization.isOpen, true, "the student-facing page says open");
+    assert(pub.data.organization.closesInMs > 0, "the countdown did not reach the phone");
+    return `open, closes in ${Math.round(left / 1000)}s`;
+  });
+
+  await test("students can register while the round runs", async () => {
+    const c = client("round-player");
+    const { status, data } = await c.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "In Time", phone: "9863000002" },
+    });
+    eq(status, 200, "status");
+    eq(data.timeLimitSeconds, 60, "their own limit is the same minute");
+    return "registered inside the round";
+  });
+
+  await test("when the deadline passes the event closes itself", async () => {
+    // Wind the deadline back rather than waiting a minute: the rule reads the
+    // stored timestamp, so a past one is exactly what running out looks like.
+    await emu.db.query(
+      `UPDATE organizations SET closes_at = now() - interval '1 second' WHERE slug = 'round-2026'`,
+    );
+
+    const { status, data } = await client("round-late").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Too Late", phone: "9863000003" },
+    });
+    eq(status, 403, "status");
+    assert(data.error.includes("closed"), `message was: ${data.error}`);
+
+    const pub = await client("round-pub2").call("/api/public/organization?code=round-2026");
+    eq(pub.data.organization.isOpen, false, "the student-facing page still says open");
+
+    // Nothing rewrote the switch — the deadline alone closed it.
+    const row = await emu.db.query(`SELECT is_open FROM organizations WHERE slug = 'round-2026'`);
+    eq(row.rows[0].is_open, true, "is_open was flipped; the deadline should be enough");
+    return "closed by its deadline, with is_open left alone";
+  });
+
+  await test("a student caught mid-quiz can still finish", async () => {
+    // They registered while the round was running; running out must not throw
+    // away answers they had already given.
+    const attempt = await emu.db.query(
+      `SELECT a.public_id FROM attempts a
+         JOIN participants p ON p.id = a.participant_id
+         JOIN organizations o ON o.id = a.organization_id
+        WHERE o.slug = 'round-2026' AND p.phone = '9863000002' AND a.status = 'in_progress'`,
+    );
+    assert(attempt.rows.length === 1, "expected one open attempt");
+    const id = attempt.rows[0].public_id;
+    const answers = await answersFor(emu.db, id);
+    const { status, data } = await client("round-finish").call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: id, answers, elapsedMs: 20_000 },
+    });
+    eq(status, 200, "status");
+    eq(data.score, 2, "score");
+    return "submitted after the round ended, and marked";
+  });
+
+  await test("Start again runs a fresh round", async () => {
+    const { status, data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    eq(status, 200, "status");
+    const left = new Date(data.organization.closes_at).getTime() - Date.now();
+    assert(left > 50_000, `the new deadline is only ${Math.round(left / 1000)}s away`);
+
+    const { status: joined } = await client("round-second").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Second Round", phone: "9863000004" },
+    });
+    eq(joined, 200, "a student can join the new round");
+    return "a second round, and the room is open again";
+  });
+
+  await test("closing by hand ends the round and clears its deadline", async () => {
+    const { status, data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { isOpen: false },
+    });
+    eq(status, 200, "status");
+    eq(data.organization.is_open, false, "is_open");
+    eq(data.organization.closes_at, null, "a closed event must not keep a deadline ticking");
+
+    const { status: refused } = await client("round-closed").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "After Close", phone: "9863000005" },
+    });
+    eq(refused, 403, "status");
+    return "closed, deadline cleared";
+  });
+
+  await test("reopening by hand means open until somebody says otherwise", async () => {
+    const { data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { isOpen: true },
+    });
+    eq(data.organization.is_open, true, "is_open");
+    eq(data.organization.closes_at, null, "reopening by hand must not invent a deadline");
+
+    const { status } = await client("round-reopened").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "After Reopen", phone: "9863000006" },
+    });
+    eq(status, 200, "status");
+    return "open with no deadline";
+  });
+
+  await test("an ordinary edit leaves a running round alone", async () => {
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    const before = await admin.call(`/api/admin/organizations/${roundOrgId}`);
+    const deadline = before.data.organization.closes_at;
+    assert(deadline, "expected a running round");
+
+    // Renaming the event must not end it.
+    const { data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { city: "Bengaluru" },
+    });
+    eq(data.organization.closes_at, deadline, "the deadline moved during an unrelated edit");
+    eq(data.organization.city, "Bengaluru", "the edit itself did not take");
+    return "deadline untouched by an unrelated edit";
+  });
+
+  await test("Start on an untimed set just opens it", async () => {
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: null },
+    });
+    const { data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    eq(data.organization.is_open, true, "is_open");
+    eq(data.organization.closes_at, null, "an untimed set has no deadline to give");
+
+    const { status } = await client("round-untimed").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Untimed Round", phone: "9863000007" },
+    });
+    eq(status, 200, "status");
+    return "open, with nothing to run out";
+  });
+
+  await test("the run dashboard reports the room while it plays", async () => {
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+
+    // Two students in: one finishes, one is left mid-quiz.
+    const done = client("run-done");
+    const d = await done.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Run Done", phone: "9864000001" },
+    });
+    const answers = await answersFor(emu.db, d.data.attemptId);
+    await done.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: d.data.attemptId, answers, elapsedMs: 2000 },
+    });
+
+    const mid = client("run-mid");
+    await mid.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Run Mid", phone: "9864000002" },
+    });
+
+    const { data } = await admin.call(`/api/admin/organizations/${roundOrgId}`);
+    assert(data.summary.registered >= 2, `registered was ${data.summary.registered}`);
+    assert(data.summary.completed >= 1, `submitted was ${data.summary.completed}`);
+    assert(data.summary.answering >= 1, `still answering was ${data.summary.answering}`);
+    assert(
+      data.results.some((r) => r.name === "Run Done"),
+      "the finished student is missing from the leaderboard the panel shows",
+    );
+    return `${data.summary.registered} registered, ${data.summary.answering} answering, ${data.summary.completed} submitted`;
+  });
+
+  await test("a student whose own clock has expired stops counting as answering", async () => {
+    // The host must not be left waiting on somebody who is never coming back.
+    // The set runs one minute, so an attempt older than that cannot be live.
+    // An earlier test left this set untimed, and an untimed set can only judge
+    // "still answering" loosely — an hour. Put the minute back, so the rule
+    // being checked is the one that reads the set's own limit.
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: 1 },
+    });
+
+    const before = await admin.call(`/api/admin/organizations/${roundOrgId}`);
+    assert(before.data.summary.answering >= 1, "expected somebody mid-quiz to age out");
+
+    await emu.db.query(
+      `UPDATE attempts SET started_at = now() - interval '10 minutes'
+        WHERE status = 'in_progress'
+          AND organization_id = (SELECT id FROM organizations WHERE slug = 'round-2026')`,
+    );
+
+    const after = await admin.call(`/api/admin/organizations/${roundOrgId}`);
+    eq(after.data.summary.answering, 0, "still answering");
+    // The raw attempt is still open, and still counts as an unfinished person.
+    assert(after.data.summary.in_progress >= 1, "the attempt itself should still be open");
+    assert(
+      after.data.notFinished.some((p) => p.phone === "9864000002"),
+      "they should still be listed as not finished",
+    );
+    return "aged out of 'answering', still listed as unfinished";
+  });
+
+  await test("the run dashboard has a URL of its own, addressed by code", async () => {
+    const byCode = await admin.call("/admin/organizations/round-2026/dashboard");
+    eq(byCode.status, 200, "by code");
+    assert(byCode.data.includes("Round College"), "the event name is missing from the page");
+
+    const byId = await admin.call(`/admin/organizations/${roundOrgId}/dashboard`);
+    eq(byId.status, 200, "by id");
+    return "/admin/organizations/round-2026/dashboard and by id both render";
+  });
+
+  await test("the organization page itself also answers to the code", async () => {
+    const { status, data } = await admin.call("/admin/organizations/round-2026");
+    eq(status, 200, "status");
+    assert(data.includes("Round College"), "the event name is missing from the page");
+  });
+
+  await test("the short URL redirects into the guarded admin one", async () => {
+    const { status, res } = await admin.call("/organizations/round-2026/dashboard", {
+      redirect: "manual",
+      raw: true,
+    });
+    assert(status === 307 || status === 308, `expected a redirect, got ${status}`);
+    eq(
+      res.headers.get("location"),
+      "/admin/organizations/round-2026/dashboard",
+      "where it points",
+    );
+    return "short URL -> the admin one";
+  });
+
+  await test("a signed-out visitor cannot reach the dashboard", async () => {
+    const anon = client("dash-anon");
+    const direct = await anon.call("/admin/organizations/round-2026/dashboard", {
+      redirect: "manual",
+      raw: true,
+    });
+    assert(direct.status === 307 || direct.status === 308, `got ${direct.status}`);
+    assert(
+      (direct.res.headers.get("location") ?? "").includes("/admin/login"),
+      `sent to ${direct.res.headers.get("location")}`,
+    );
+
+    // And the short URL cannot be used to slip past that.
+    const short = await anon.call("/organizations/round-2026/dashboard");
+    assert(
+      typeof short.data === "string" && short.data.includes("Team sign in"),
+      "the short URL let an anonymous visitor through",
+    );
+    return "bounced to sign-in by both routes";
+  });
+
+  await test("an unknown code is a 404, not an empty dashboard", async () => {
+    const { status } = await admin.call("/admin/organizations/no-such-event/dashboard");
+    eq(status, 404, "status");
+  });
+
+  await test("the live endpoint answers with only what the run screen draws", async () => {
+    const { status, data } = await admin.call(`/api/admin/organizations/${roundOrgId}/live`);
+    eq(status, 200, "status");
+
+    // Exactly these keys — anything heavier has crept in if this fails.
+    eq(Object.keys(data).sort(), ["ok", "organization", "summary", "top"], "response shape");
+    eq(
+      Object.keys(data.summary).sort(),
+      ["answering", "completed", "registered"],
+      "summary shape",
+    );
+    eq(
+      Object.keys(data.organization).sort(),
+      ["city", "closes_at", "id", "is_open", "name", "slug"],
+      "organization shape",
+    );
+
+    // Nothing that grows with the room: no results table, no analysis, no list.
+    assert(!("results" in data), "the full results table is in the live payload");
+    assert(!("analysis" in data), "the question analysis is in the live payload");
+    assert(!("notFinished" in data), "the did-not-finish list is in the live payload");
+    assert(data.top.length <= 5, `the board carried ${data.top.length} rows, expected at most 5`);
+
+    return `${JSON.stringify(data).length} bytes, board capped at 5`;
+  });
+
+  await test("the live payload stays small as the room grows", async () => {
+    const before = JSON.stringify(
+      (await admin.call(`/api/admin/organizations/${roundOrgId}/live`)).data,
+    ).length;
+
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    for (let i = 0; i < 8; i++) {
+      const c = client(`live-load-${i}`);
+      const start = await c.call("/api/quiz/start", {
+        method: "POST",
+        body: { slug: "round-2026", name: `Load Student ${i}`, phone: `98650000${10 + i}` },
+      });
+      const answers = await answersFor(emu.db, start.data.attemptId);
+      await c.call("/api/quiz/submit", {
+        method: "POST",
+        body: { attemptId: start.data.attemptId, answers, elapsedMs: 2000 },
+      });
+    }
+
+    const after = await admin.call(`/api/admin/organizations/${roundOrgId}/live`);
+    assert(after.data.summary.completed >= 8, `completed was ${after.data.summary.completed}`);
+    eq(after.data.top.length, 5, "the board is still capped");
+
+    const grown = JSON.stringify(after.data).length;
+    // Eight more finishers must not make the payload meaningfully bigger.
+    assert(grown < before + 400, `payload grew from ${before} to ${grown} bytes`);
+    return `${before} -> ${grown} bytes after 8 more finishers`;
+  });
+
+  await test("one student appears once on the live board even after a retake", async () => {
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { allowRetake: true },
+    });
+    const c = client("live-retake");
+    for (let i = 0; i < 2; i++) {
+      const start = await c.call("/api/quiz/start", {
+        method: "POST",
+        body: { slug: "round-2026", name: "Twice Over", phone: "9865000099" },
+      });
+      const answers = await answersFor(emu.db, start.data.attemptId);
+      await c.call("/api/quiz/submit", {
+        method: "POST",
+        body: { attemptId: start.data.attemptId, answers, elapsedMs: 1500 },
+      });
+    }
+    const { data } = await admin.call(`/api/admin/organizations/${roundOrgId}/live`);
+    const mine = data.top.filter((r) => r.name === "Twice Over");
+    assert(mine.length <= 1, `they appear ${mine.length} times on the board`);
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { allowRetake: false },
+    });
+    return "best attempt only";
+  });
+
+  await test("the live endpoint is admin-only", async () => {
+    const { status } = await client("live-anon").call(
+      `/api/admin/organizations/${roundOrgId}/live`,
+    );
+    eq(status, 401, "status");
+  });
+
   section("Pictures on questions");
 
   // A real 1x1 PNG, so the sniffing in /api/admin/uploads has genuine magic
