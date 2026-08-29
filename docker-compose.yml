@@ -1,0 +1,38 @@
+# Postgres for local development.
+#
+#   docker compose up -d      start it
+#   docker compose down       stop it
+#   docker compose down -v    stop it and delete the data
+#
+# The version is pinned, and the volume belongs to this project alone, so this
+# cannot collide with a database from another project on your machine.
+#
+# Every name and port here is deliberately different from the GGIRHR quiz next
+# door: the container name is global to Docker, so two projects sharing one
+# would refuse to start, and the host port would have collided too. That is why
+# this is garv-quiz-db on 5433 rather than garbhagudi-quiz-db on 5432.
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: garv-quiz-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: quiz
+      POSTGRES_PASSWORD: quiz
+      POSTGRES_DB: garv_quiz
+    ports:
+      # 5433 so this can run beside the GGIRHR quiz, which uses 5432. Change
+      # the left-hand number if 5433 is taken too, and set LOCAL_PG_PORT to
+      # match when you run npm run dev:local.
+      - "${LOCAL_PG_PORT:-5433}:5432"
+    volumes:
+      - garv-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quiz -d garv_quiz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  garv-db-data:

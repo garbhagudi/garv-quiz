@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply font-body text-ink antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-[3px] ring-apricot ring-offset-2 ring-offset-cream;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* stops iOS Safari zooming in on focus */
+  }
+}
+
+@layer components {
+  /* The blush ground the student-facing pages sit on.
+     Flat rather than a gradient: at this lightness a gradient reads as a smudge
+     rather than as depth. Because it is a light ground, everything placed
+     directly on it is inked dark — see BrandBar and Stage in
+     src/components/Stage.tsx. */
+  .surface-stage {
+    @apply min-h-screen;
+    background: #fff7f8;
+  }
+
+  /* The admin workspace is a light room — it gets read all day, not for 5 minutes. */
+  .surface-desk {
+    @apply min-h-screen bg-petal;
+  }
+
+  /* On the blush ground the cream is only a hair darker than the page, so the
+     card carries a hairline in the brand colour as well as its shadow —
+     without it the card has no edge at all. */
+  .card {
+    @apply rounded-xl3 border border-brand/15 bg-cream p-6 shadow-card sm:p-7;
+  }
+
+  .panel {
+    @apply rounded-xl2 border border-ink/10 bg-white p-5 shadow-sm;
+  }
+
+  .eyebrow {
+    @apply font-display text-[11px] font-medium uppercase tracking-[0.22em];
+  }
+
+  .field {
+    @apply mb-1.5 mt-4 block font-display text-[12.5px] font-medium uppercase tracking-[0.06em] text-plum-soft;
+  }
+
+  .input {
+    @apply w-full rounded-[14px] border-[1.5px] border-ink/10 bg-white px-3.5 py-3
+           font-body text-base font-semibold text-ink
+           placeholder:font-normal placeholder:text-muted/60
+           focus:border-transparent focus:outline-none focus:ring-[2.5px] focus:ring-apricot;
+  }
+
+  .input-sm {
+    @apply w-full rounded-[10px] border-[1.5px] border-ink/10 bg-white px-3 py-2
+           font-body text-[15px] font-semibold text-ink
+           focus:border-transparent focus:outline-none focus:ring-2 focus:ring-apricot;
+  }
+
+  .btn {
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-[15px] border-0
+           px-5 py-3.5 font-display text-base font-medium
+           transition active:translate-y-px
+           disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0;
+  }
+
+  .btn-primary {
+    @apply btn bg-plum text-white hover:bg-plum-deep;
+  }
+
+  .btn-accent {
+    @apply btn bg-apricot font-bold text-plum-deep hover:bg-apricot-deep;
+  }
+
+  .btn-ghost {
+    @apply btn border-[1.5px] border-ink/15 bg-transparent text-plum hover:bg-ink/5;
+  }
+
+  .btn-danger {
+    @apply btn bg-coral text-white hover:brightness-95;
+  }
+
+  .btn-sm {
+    @apply w-auto rounded-[11px] px-3.5 py-2 text-[13.5px];
+  }
+
+  .linkish {
+    @apply cursor-pointer border-0 bg-transparent p-0 font-body text-[13.5px] text-plum-soft underline
+           underline-offset-2 hover:text-plum;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display
+           text-[11px] font-medium uppercase tracking-[0.1em];
+  }
+
+  .err {
+    @apply min-h-[18px] font-body text-[13.5px] font-bold text-coral;
+  }
+
+  .hint {
+    @apply font-body text-[13px] leading-relaxed text-muted;
+  }
+
+  /* Wide tables scroll in their own box rather than the page. */
+  .table-wrap {
+    @apply -mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0;
+  }
+
+  .data-table {
+    @apply w-full border-collapse text-[14px];
+  }
+
+  .data-table th {
+    @apply whitespace-nowrap border-b border-ink/10 px-2.5 py-2 text-left font-display
+           text-[11px] font-medium uppercase tracking-[0.1em] text-plum-soft;
+  }
+
+  .data-table td {
+    @apply border-b border-ink/[0.07] px-2.5 py-2.5 align-top;
+  }
+
+  .data-table tbody tr:hover {
+    @apply bg-apricot/[0.07];
+  }
+}
+
+/* Respect a user's reduced-motion preference across the whole app. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

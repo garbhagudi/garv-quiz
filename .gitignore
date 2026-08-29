@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.next-e2e/
+.next-probe/
+.next-render/
+out/
+build/
+.env
+.env.local
+.env*.local
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+
