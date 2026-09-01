@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Notice, Empty, MEDALS } from "./Ui";
-import { QrCode } from "./QrCode";
+import { QrCode, downloadQrPng, isAbsolute } from "./QrCode";
 import type { Organization } from "@/lib/types";
 
 /* -------------------------------- shapes --------------------------------- */
@@ -232,6 +232,11 @@ export function RunPanel({
 function JoinBlock({ shareUrl }: { shareUrl: string }) {
   const [big, setBig] = useState(false);
 
+  // "join-embryology.png" rather than "download.png", so a folder of these from
+  // several events is still sortable a month later.
+  const slug = shareUrl.split("/s/")[1]?.replace(/[^a-z0-9-]/gi, "") || "quiz";
+  const save = () => downloadQrPng(shareUrl, `join-${slug}.png`);
+
   // Escape closes the projected view, same as every other overlay here.
   useEffect(() => {
     if (!big) return;
@@ -262,6 +267,11 @@ function JoinBlock({ shareUrl }: { shareUrl: string }) {
             {shareUrl}
           </code>
           <p className="mt-1 text-[12px] text-muted">Scan the code, or type the address.</p>
+          {isAbsolute(shareUrl) ? (
+            <button type="button" className="linkish mt-1" onClick={save}>
+              Download the code
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -279,6 +289,9 @@ function JoinBlock({ shareUrl }: { shareUrl: string }) {
           <p className="text-center font-display text-[clamp(18px,4vw,40px)] font-bold tracking-tight text-plum">
             {shareUrl}
           </p>
+          {/* Nothing to press here on purpose: this view goes on a projector,
+              and a Download button in front of a room is just clutter on the
+              wall. Saving the code lives on the panel behind this. */}
           <p className="text-[13px] text-muted">Click anywhere, or press Escape, to close.</p>
         </div>
       ) : null}

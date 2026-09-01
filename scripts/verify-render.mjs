@@ -84,7 +84,7 @@ const { QuestionText } = await import(
   pathToFileURL(join(out, "components", "QuestionText.js")).href
 );
 
-const { QrCode } = await import(
+const { QrCode, downloadQrPng, isAbsolute } = await import(
   pathToFileURL(join(out, "components", "admin", "QrCode.js")).href
 );
 
@@ -226,6 +226,20 @@ const other = renderToStaticMarkup(
   React.createElement(QrCode, { value: "https://quiz.example.com/s/clinical" }),
 );
 check("a different link encodes to a different code", other !== qrSvg);
+
+/* The download draws on a canvas, so it cannot be exercised without a browser.
+   What is worth proving here is that importing and calling it on a server is
+   harmless - this module is pulled into a client component that Next still
+   renders server-side first, where there is no document to reach for. */
+let threw = "";
+try {
+  downloadQrPng("https://quiz.example.com/s/embryology", "join.png");
+  downloadQrPng("/s/embryology", "join.png");
+} catch (e) {
+  threw = String(e);
+}
+check("saving a code is a safe no-op where there is no browser", threw === "", threw);
+check("only a real link is treated as encodable", isAbsolute("https://x.test/s/a") && !isAbsolute("/s/a"));
 
 const relative = renderToStaticMarkup(React.createElement(QrCode, { value: "/s/embryology" }));
 check(
