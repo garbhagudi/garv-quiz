@@ -8,7 +8,7 @@
  *
  * It starts the actual Next server against a local Neon-HTTP emulator backed by
  * PGlite, then plays through the whole product over HTTP: a student registers,
- * answers, sees the leaderboard and their dashboard; an admin signs in, edits
+ * answers and is thanked; an admin signs in, edits
  * questions, reads results and exports the workbook; and the permission and
  * anti-cheat rules are pushed on to confirm they hold.
  *
@@ -173,6 +173,29 @@ async function skipLeadIn(db, slug) {
     `UPDATE organizations SET closes_at = closes_at - interval '5 seconds' WHERE slug = $1`,
     [slug],
   );
+}
+
+/**
+ * Put a student into a running round the way the product now works.
+ *
+ * New entries are refused once a round is on, so a player has to be registered
+ * while the waiting room is open and then come back for the questions. This
+ * opens the room, registers, starts the round, skips the lead-in, and returns
+ * the second call - the one that carries the questions.
+ */
+async function joinViaWaitingRoom(admin, db, c, orgId, slug, body) {
+  await admin.call(`/api/admin/organizations/${orgId}`, {
+    method: "PATCH",
+    body: { isOpen: true },
+  });
+  const lobby = await c.call("/api/quiz/start", { method: "POST", body: { slug, ...body } });
+  if (lobby.status !== 200) return lobby;
+  await admin.call(`/api/admin/organizations/${orgId}`, {
+    method: "PATCH",
+    body: { startRound: true },
+  });
+  await skipLeadIn(db, slug);
+  return c.call("/api/quiz/start", { method: "POST", body: { slug, ...body } });
 }
 
 async function answersFor(db, attemptId, correctCount = 99) {
@@ -472,6 +495,68 @@ try {
     // Sending her own address back must trip the retake rule, not the rule
     // against two students sharing one address.
     eq(data.field, "phone", "the address rule fired against the student's own row");
+  });
+
+  await test("the server times the run itself and records the streak", async () => {
+    const c = client("ranking-inputs");
+    const started = await c.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "demo", name: "Ranking Inputs", phone: "9800000021", email: "rank@x.com" },
+    });
+    eq(started.status, 200, "registered");
+    const id = started.data.attemptId;
+
+    // Answer the first three correctly, miss the fourth, take the fifth: the
+    // longest run is 3, which is not the same as the 4 answered correctly.
+    const served = await servedFor(emu.db, id);
+    const answers = served.map((q, i) => {
+      const key = q.cis?.length ? q.cis : [q.ci];
+      const right = i < 3 || i === 4;
+      return {
+        position: q.p,
+        optionIndexes: right ? key : key.map((k) => (k + 1) % q.opts.length),
+        ms: 1, // the phone claims one millisecond a question
+      };
+    });
+    // Age the attempt so the measurement is unambiguous: locally the whole
+    // round trip takes a few milliseconds, which is the same order as the
+    // phone's fake claim and would prove nothing either way.
+    await emu.db.query(
+      `UPDATE attempts SET started_at = now() - interval '30 seconds' WHERE public_id = $1`,
+      [id],
+    );
+
+    const { status, data } = await c.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: id, answers, elapsedMs: 1 },
+    });
+    eq(status, 200, "submitted");
+
+    const [row] = (
+      await emu.db.query(
+        `SELECT answer_ms, server_ms, best_streak, correct_count FROM attempts WHERE public_id = $1`,
+        [id],
+      )
+    ).rows;
+
+    eq(row.answer_ms, served.length, "the phone's claim is stored as sent");
+    eq(row.best_streak, 3, "longest run of correct answers");
+    assert(row.correct_count > row.best_streak, "the streak must not just be the correct count");
+    // The phone claimed one millisecond a question. The server had them on the
+    // page for thirty seconds and ranks on that, whatever the payload says.
+    assert(
+      row.server_ms >= 29_000 && row.server_ms <= 40_000,
+      `server_ms was ${row.server_ms}, expected about 30000 whatever the phone claimed`,
+    );
+    assert(
+      row.server_ms > row.answer_ms * 100,
+      `the claimed ${row.answer_ms}ms still drove the stored time`,
+    );
+    eq(data.answerMs, row.answer_ms, "the finish screen still shows their own answering time");
+
+    // Only here to be measured; the admin counts below are asserted exactly.
+    await emu.db.query(`DELETE FROM participants WHERE phone = '9800000021'`);
+    return `claimed ${row.answer_ms}ms, server saw ${row.server_ms}ms, streak ${row.best_streak}`;
   });
 
   await test("the student-facing leaderboard and dashboard are gone", async () => {
@@ -1119,9 +1204,9 @@ try {
 
   await test("the limit reaches the student with their questions", async () => {
     const c = client("timed");
-    const { status, data } = await c.call("/api/quiz/start", {
-      method: "POST",
-      body: { slug: "timed-2026", name: "Timed Student", phone: "9872000002" },
+    const { status, data } = await joinViaWaitingRoom(admin, emu.db, c, timedOrgId, "timed-2026", {
+      name: "Timed Student",
+      phone: "9872000002",
     });
     eq(status, 200, "status");
     eq(data.timeLimitSeconds, 720, "timeLimitSeconds");
@@ -1136,9 +1221,9 @@ try {
 
   await test("running out of time still saves the answers given so far", async () => {
     const c = client("ran-out");
-    const { data } = await c.call("/api/quiz/start", {
-      method: "POST",
-      body: { slug: "timed-2026", name: "Ran Out", phone: "9872000003" },
+    const { data } = await joinViaWaitingRoom(admin, emu.db, c, timedOrgId, "timed-2026", {
+      name: "Ran Out",
+      phone: "9872000003",
     });
     // What the countdown submits at zero: the answers reached, nothing else.
     const all = await answersFor(emu.db, data.attemptId);
@@ -1331,6 +1416,12 @@ try {
     });
     eq(byEmail.status, 409, "status when they come back by address");
     assert(byEmail.data.error.includes("already played"), `message was: ${byEmail.data.error}`);
+
+    // There is nowhere for them to go and look, so the refusal must not send
+    // them anywhere. This used to read "Open your dashboard to see your score."
+    for (const m of [byPhone.data.error, byEmail.data.error]) {
+      assert(!/dashboard/i.test(m), `the refusal still points at a dashboard: ${m}`);
+    }
     eq(byEmail.data.field, "email", "field");
     return "both routes say already played, not a clash";
   });
@@ -1579,6 +1670,19 @@ try {
   });
 
   await test("Start opens it and gives the round the set's limit", async () => {
+    // Into the waiting room first - once the round is on, the door is shut.
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { isOpen: true },
+    });
+    const eager = client("round-leadin");
+    const booked = await eager.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Too Eager", phone: "9863000011" },
+    });
+    eq(booked.status, 200, "registered in the waiting room");
+    eq(booked.data.waiting, true, "and is waiting");
+
     const { status, data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
       method: "PATCH",
       body: { startRound: true },
@@ -1607,15 +1711,15 @@ try {
     assert(pub.data.organization.closesInMs > 0, "the countdown did not reach the phone");
 
     // During the lead-in there is still nothing to answer.
-    const early = await client("round-leadin").call("/api/quiz/start", {
+    const early = await eager.call("/api/quiz/start", {
       method: "POST",
       body: { slug: "round-2026", name: "Too Eager", phone: "9863000011" },
     });
-    eq(early.status, 200, "registering during the lead-in is fine");
+    eq(early.status, 200, "somebody already registered may still come back");
     eq(early.data.waiting, true, "but the questions wait for the countdown");
 
     await skipLeadIn(emu.db, "round-2026");
-    const now = await client("round-leadin2").call("/api/quiz/start", {
+    const now = await eager.call("/api/quiz/start", {
       method: "POST",
       body: { slug: "round-2026", name: "Too Eager", phone: "9863000011" },
     });
@@ -1624,15 +1728,38 @@ try {
     return `open, ${Math.round(left / 1000)}s deadline including the lead-in`;
   });
 
-  await test("students can register while the round runs", async () => {
-    const c = client("round-player");
-    const { status, data } = await c.call("/api/quiz/start", {
+  await test("a running round takes no new entries, however new the details", async () => {
+    /* The hole this closes: play once, copy the questions out, then come back
+       under a different name and mobile ten minutes in and collect a fresh full
+       window with the answers already in hand. The retake rule cannot see it -
+       a new number and a new address are a new person - so the door is what
+       stops it. */
+    const { status, data } = await client("round-latecomer").call("/api/quiz/start", {
       method: "POST",
-      body: { slug: "round-2026", name: "In Time", phone: "9863000002" },
+      body: { slug: "round-2026", name: "Brand New", phone: "9863000012" },
+    });
+    eq(status, 403, "status");
+    assert(/already started/i.test(data.error), `message was: ${data.error}`);
+
+    // And nothing was written for them.
+    const rows = await emu.db.query(
+      `SELECT count(*)::int AS n FROM participants p
+         JOIN organizations o ON o.id = p.organization_id
+        WHERE o.slug = 'round-2026' AND p.phone = '9863000012'`,
+    );
+    eq(rows.rows[0].n, 0, "a refused latecomer must leave no row behind");
+    return "refused, and nothing written";
+  });
+
+  await test("somebody from the waiting room plays the round they booked", async () => {
+    const c = client("round-player");
+    const { status, data } = await joinViaWaitingRoom(admin, emu.db, c, roundOrgId, "round-2026", {
+      name: "In Time",
+      phone: "9863000002",
     });
     eq(status, 200, "status");
     eq(data.timeLimitSeconds, 60, "their own limit is the same minute");
-    return "registered inside the round";
+    return "registered in the waiting room, playing in the round";
   });
 
   await test("when the deadline passes the event closes itself", async () => {
@@ -1735,16 +1862,10 @@ try {
   });
 
   await test("a submission after the student's own time is up is refused", async () => {
-    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
-      method: "PATCH",
-      body: { startRound: true },
-    });
-    await skipLeadIn(emu.db, "round-2026");
-
     const c = client("round-overrun");
-    const started = await c.call("/api/quiz/start", {
-      method: "POST",
-      body: { slug: "round-2026", name: "Ran Over", phone: "9863000009" },
+    const started = await joinViaWaitingRoom(admin, emu.db, c, roundOrgId, "round-2026", {
+      name: "Ran Over",
+      phone: "9863000009",
     });
     eq(started.status, 200, "registered");
     const id = started.data.attemptId;
@@ -1785,9 +1906,9 @@ try {
     // The countdown starts in the browser a moment after `started_at` is
     // stamped here, so an honest auto-submit at zero lands slightly late.
     const c = client("round-grace");
-    const started = await c.call("/api/quiz/start", {
-      method: "POST",
-      body: { slug: "round-2026", name: "Just Late", phone: "9863000010" },
+    const started = await joinViaWaitingRoom(admin, emu.db, c, roundOrgId, "round-2026", {
+      name: "Just Late",
+      phone: "9863000010",
     });
     eq(started.status, 200, "registered");
     const id = started.data.attemptId;
@@ -1818,12 +1939,20 @@ try {
     const left = new Date(data.organization.closes_at).getTime() - Date.now();
     assert(left > 50_000, `the new deadline is only ${Math.round(left / 1000)}s away`);
 
-    const { status: joined } = await client("round-second").call("/api/quiz/start", {
+    // A new face cannot walk into the running round...
+    const { status: shut } = await client("round-second-late").call("/api/quiz/start", {
       method: "POST",
       body: { slug: "round-2026", name: "Second Round", phone: "9863000004" },
     });
-    eq(joined, 200, "a student can join the new round");
-    return "a second round, and the room is open again";
+    eq(shut, 403, "the door is shut on the second round too");
+
+    // ...but the host reopening the waiting room lets them in for it.
+    const { status: joined } = await joinViaWaitingRoom(
+      admin, emu.db, client("round-second"), roundOrgId, "round-2026",
+      { name: "Second Round", phone: "9863000004" },
+    );
+    eq(joined, 200, "a student can join the new round through the waiting room");
+    return "a second round, entered the way the first one was";
   });
 
   await test("closing by hand ends the round and clears its deadline", async () => {
@@ -2138,17 +2267,28 @@ try {
       (await admin.call(`/api/admin/organizations/${roundOrgId}/live`)).data,
     ).length;
 
+    // A roomful books in first, the way they now have to.
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { isOpen: true },
+    });
+    const room = [];
+    for (let i = 0; i < 8; i++) {
+      const c = client(`live-load-${i}`);
+      const body = { slug: "round-2026", name: `Load Student ${i}`, phone: `98650000${10 + i}` };
+      const lobby = await c.call("/api/quiz/start", { method: "POST", body });
+      eq(lobby.status, 200, `student ${i} into the waiting room`);
+      room.push({ c, body });
+    }
+
     await admin.call(`/api/admin/organizations/${roundOrgId}`, {
       method: "PATCH",
       body: { startRound: true },
     });
     await skipLeadIn(emu.db, "round-2026");
-    for (let i = 0; i < 8; i++) {
-      const c = client(`live-load-${i}`);
-      const start = await c.call("/api/quiz/start", {
-        method: "POST",
-        body: { slug: "round-2026", name: `Load Student ${i}`, phone: `98650000${10 + i}` },
-      });
+
+    for (const { c, body } of room) {
+      const start = await c.call("/api/quiz/start", { method: "POST", body });
       const answers = await answersFor(emu.db, start.data.attemptId);
       await c.call("/api/quiz/submit", {
         method: "POST",
@@ -2172,15 +2312,20 @@ try {
       body: { allowRetake: true },
     });
     const c = client("live-retake");
-    for (let i = 0; i < 2; i++) {
-      const start = await c.call("/api/quiz/start", {
-        method: "POST",
-        body: { slug: "round-2026", name: "Twice Over", phone: "9865000099" },
-      });
-      const answers = await answersFor(emu.db, start.data.attemptId);
+    const body = { slug: "round-2026", name: "Twice Over", phone: "9865000099" };
+    // The first run comes in through the waiting room; the retake is allowed
+    // because by then they are somebody the event already knows.
+    const first = await joinViaWaitingRoom(admin, emu.db, c, roundOrgId, "round-2026", {
+      name: body.name,
+      phone: body.phone,
+    });
+    eq(first.status, 200, "first run");
+    for (const start of [first, null]) {
+      const run = start ?? (await c.call("/api/quiz/start", { method: "POST", body }));
+      const answers = await answersFor(emu.db, run.data.attemptId);
       await c.call("/api/quiz/submit", {
         method: "POST",
-        body: { attemptId: start.data.attemptId, answers, elapsedMs: 1500 },
+        body: { attemptId: run.data.attemptId, answers, elapsedMs: 1500 },
       });
     }
     const { data } = await admin.call(`/api/admin/organizations/${roundOrgId}/live`);

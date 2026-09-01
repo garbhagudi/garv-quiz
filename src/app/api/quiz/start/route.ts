@@ -115,6 +115,31 @@ export const POST = route(async (req: Request) => {
      could never register. Read first, refuse, then write. */
   const existingId = byPhone ? byPhone.id : returningByEmail ? byEmail.id : null;
 
+  /* ---- the door shuts when the round starts ----------------------------
+     A timed round hands every attempt its own clock counted from when that
+     attempt opened. Left open, that is a way to buy time: play once, copy the
+     questions out, then register again under a new name and mobile ten minutes
+     in and collect a fresh, full window with the answers already in hand. The
+     retake rule cannot see it, because a new number and a new address are a
+     new person as far as the database is concerned.
+
+     So once a round is running, the only people who may come through are the
+     ones already registered - the waiting room is the way in, and it closes
+     when the host presses Start. Somebody whose phone died still gets back to
+     their own run, because their row already exists.
+
+     Untimed events have no round to start and are unaffected. To let new people
+     in for a second round, the host opens the waiting room again, which clears
+     the deadline and opens this door with it. */
+  const roundStarted = timeLimitSeconds !== null && Boolean(organization.closes_at);
+  if (roundStarted && existingId === null)
+    return fail(
+      "This round has already started, so new entries are closed. " +
+        "Ask the host to let you into the next one.",
+      403,
+      "phone",
+    );
+
   const [{ finished }] = (existingId === null
     ? [{ finished: 0 }]
     : ((await sql`
@@ -130,7 +155,8 @@ export const POST = route(async (req: Request) => {
   // is the same, so say the same thing and point at the field they can act on.
   if (finished > 0 && !organization.allow_retake)
     return fail(
-      "You have already played this quiz. Open your dashboard to see your score.",
+      "You have already played this quiz. Your answers are saved, and the winners " +
+        "will be announced by the host.",
       409,
       returningByEmail ? "email" : "phone",
     );

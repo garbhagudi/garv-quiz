@@ -59,10 +59,14 @@ export async function allAttemptsRanked(organizationId: number) {
   return (await sql`
     SELECT a.id, a.public_id, a.participant_id, a.score, a.max_score,
            a.correct_count, a.question_count, a.answer_ms, a.elapsed_ms,
+           a.server_ms, a.best_streak,
            a.submitted_at, a.started_at, a.status, a.ip_hash,
            p.name, p.phone, p.email, p.class_or_year,
+           -- Score, then accuracy, then speed by this server's clock, then the
+           -- longest correct streak. submitted_at only settles a dead heat.
            ROW_NUMBER() OVER (
-             ORDER BY a.score DESC, a.answer_ms ASC, a.submitted_at ASC
+             ORDER BY a.score DESC, a.correct_count DESC, a.server_ms ASC,
+                      a.best_streak DESC, a.submitted_at ASC
            )::int AS rank,
            ROW_NUMBER() OVER (
              PARTITION BY a.participant_id ORDER BY a.started_at ASC
@@ -82,6 +86,8 @@ export async function allAttemptsRanked(organizationId: number) {
     question_count: number;
     answer_ms: number;
     elapsed_ms: number;
+    server_ms: number;
+    best_streak: number;
     submitted_at: string;
     started_at: string;
     status: string;

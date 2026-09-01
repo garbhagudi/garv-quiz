@@ -127,11 +127,16 @@ await step("slug uniqueness is case-insensitive", async () => {
 
 /* --------------------- quiz/start: upsert participant --------------------- */
 
+/* Built to exercise every step of the ranking rule in turn.
+   Asha and Bhavya tie on 5 points and on accuracy, so speed separates them.
+   `server` is the server-measured time the rank actually uses; `ms` is the
+   phone-reported figure, set the other way round on purpose so a query that
+   still sorts on it fails this file loudly. */
 const students = [
-  { name: "Asha Rao", phone: "9800000001", email: "asha@x.com", score: 5, ms: 12000 },
-  { name: "Bhavya N", phone: "9800000002", email: "bhavya@x.com", score: 5, ms: 9000 },
-  { name: "Chetan K", phone: "9800000003", email: "chetan@x.com", score: 3, ms: 20000 },
-  { name: "Divya S", phone: "9800000004", email: "divya@x.com", score: 0, ms: 40000 },
+  { name: "Asha Rao",  phone: "9800000001", email: "asha@x.com",   score: 5, correct: 5, ms:  9000, server: 12000, streak: 5 },
+  { name: "Bhavya N",  phone: "9800000002", email: "bhavya@x.com", score: 5, correct: 5, ms: 12000, server:  9000, streak: 3 },
+  { name: "Chetan K",  phone: "9800000003", email: "chetan@x.com", score: 3, correct: 3, ms: 20000, server: 20000, streak: 2 },
+  { name: "Divya S",   phone: "9800000004", email: "divya@x.com",  score: 0, correct: 0, ms: 40000, server: 40000, streak: 0 },
 ];
 const participantIds = {};
 
@@ -253,9 +258,10 @@ await step("complete the attempts", async () => {
     await db.query(
       `UPDATE attempts
           SET status='completed', score=$2, max_score=6, correct_count=$3,
-              question_count=5, answer_ms=$4, elapsed_ms=$5, submitted_at=now()
+              question_count=5, answer_ms=$4, elapsed_ms=$5,
+              server_ms=$6, best_streak=$7, submitted_at=now()
         WHERE id=$1 AND status='in_progress'`,
-      [attemptIds[s.phone].id, s.score, s.score, s.ms, s.ms + 3000],
+      [attemptIds[s.phone].id, s.score, s.correct, s.ms, s.ms + 3000, s.server, s.streak],
     );
   }
   return "4 completed";
@@ -266,29 +272,72 @@ await step("complete the attempts", async () => {
    picks one best attempt per student and orders by score then answer time, so
    these keep covering that. */
 
-await step("the admin board orders by score then answer time", async () => {
+await step("the admin board orders by score, accuracy, then server-measured speed", async () => {
   const r = await db.query(
     `WITH best AS (
        SELECT DISTINCT ON (a.participant_id)
               a.id, a.public_id, a.participant_id, a.score, a.max_score,
-              a.correct_count, a.question_count, a.answer_ms, a.elapsed_ms, a.submitted_at,
+              a.correct_count, a.question_count, a.answer_ms, a.elapsed_ms,
+              a.server_ms, a.best_streak, a.submitted_at,
               p.name, p.phone, p.email, p.class_or_year
          FROM attempts a
          JOIN participants p ON p.id = a.participant_id
         WHERE a.organization_id = $1 AND a.status = 'completed'
-        ORDER BY a.participant_id, a.score DESC, a.answer_ms ASC, a.submitted_at ASC
+        ORDER BY a.participant_id, a.score DESC, a.correct_count DESC,
+                 a.server_ms ASC, a.best_streak DESC, a.submitted_at ASC
      )
-     SELECT *, ROW_NUMBER() OVER (ORDER BY score DESC, answer_ms ASC, submitted_at ASC)::int AS rank
+     SELECT *, ROW_NUMBER() OVER (
+              ORDER BY score DESC, correct_count DESC, server_ms ASC,
+                       best_streak DESC, submitted_at ASC)::int AS rank
        FROM best ORDER BY rank ASC`,
     [organizationId],
   );
   const order = r.rows.map((x) => x.name);
-  // Bhavya ties Asha on 5 points but answered faster, so she must rank first.
+  // Bhavya ties Asha on points and accuracy, and the server clocked her faster,
+  // so she leads - even though the phone reported Asha as the quicker one.
   const want = ["Bhavya N", "Asha Rao", "Chetan K", "Divya S"];
   if (JSON.stringify(order) !== JSON.stringify(want))
     throw new Error(`wrong order: ${order.join(", ")}`);
   if (r.rows[0].rank !== 1) throw new Error("rank did not start at 1");
   return order.join(" > ");
+});
+
+const RANK_SQL = `
+  SELECT p.name, ROW_NUMBER() OVER (
+           ORDER BY a.score DESC, a.correct_count DESC, a.server_ms ASC,
+                    a.best_streak DESC, a.submitted_at ASC)::int AS rank
+    FROM attempts a JOIN participants p ON p.id = a.participant_id
+   WHERE a.organization_id = $1 AND a.status='completed'
+   ORDER BY rank`;
+
+await step("accuracy outranks speed when the score is level", async () => {
+  // Same 5 points from a different number of questions right. The slower of the
+  // two got more of them right, and must still come first.
+  const ids = [participantIds["9800000001"], participantIds["9800000002"]];
+  await db.query(`UPDATE attempts SET correct_count=4, server_ms=1000 WHERE participant_id=$1`, [ids[1]]);
+  await db.query(`UPDATE attempts SET correct_count=5, server_ms=30000 WHERE participant_id=$1`, [ids[0]]);
+  const r = await db.query(RANK_SQL, [organizationId]);
+  const top = r.rows.map((x) => x.name).slice(0, 2);
+  if (JSON.stringify(top) !== JSON.stringify(["Asha Rao", "Bhavya N"]))
+    throw new Error(`accuracy did not outrank speed: ${top.join(", ")}`);
+  // put the fixture back for the steps below
+  await db.query(`UPDATE attempts SET correct_count=5, server_ms=9000 WHERE participant_id=$1`, [ids[1]]);
+  await db.query(`UPDATE attempts SET correct_count=5, server_ms=12000 WHERE participant_id=$1`, [ids[0]]);
+  return "5 right in 30s beats 4 right in 1s";
+});
+
+await step("the longer correct streak settles a dead heat on time", async () => {
+  const ids = [participantIds["9800000001"], participantIds["9800000002"]];
+  // Identical score, accuracy and time to the millisecond: only the streak differs.
+  await db.query(`UPDATE attempts SET correct_count=5, server_ms=7777, best_streak=2 WHERE participant_id=$1`, [ids[0]]);
+  await db.query(`UPDATE attempts SET correct_count=5, server_ms=7777, best_streak=5 WHERE participant_id=$1`, [ids[1]]);
+  const r = await db.query(RANK_SQL, [organizationId]);
+  const top = r.rows.map((x) => x.name).slice(0, 2);
+  if (JSON.stringify(top) !== JSON.stringify(["Bhavya N", "Asha Rao"]))
+    throw new Error(`streak did not break the tie: ${top.join(", ")}`);
+  await db.query(`UPDATE attempts SET server_ms=12000, best_streak=5 WHERE participant_id=$1`, [ids[0]]);
+  await db.query(`UPDATE attempts SET server_ms=9000,  best_streak=3 WHERE participant_id=$1`, [ids[1]]);
+  return "same score, same time, longer streak wins";
 });
 
 await step("a retake does not put one student on the admin board twice", async () => {
@@ -302,11 +351,15 @@ await step("a retake does not put one student on the admin board twice", async (
   );
   const board = await db.query(
     `WITH best AS (
-       SELECT DISTINCT ON (a.participant_id) a.participant_id, a.score, a.answer_ms, a.submitted_at, p.name
+       SELECT DISTINCT ON (a.participant_id) a.participant_id, a.score, a.correct_count,
+              a.server_ms, a.best_streak, a.submitted_at, p.name
          FROM attempts a JOIN participants p ON p.id = a.participant_id
         WHERE a.organization_id = $1 AND a.status='completed'
-        ORDER BY a.participant_id, a.score DESC, a.answer_ms ASC, a.submitted_at ASC)
-     SELECT name, score, ROW_NUMBER() OVER (ORDER BY score DESC, answer_ms ASC, submitted_at ASC)::int rank
+        ORDER BY a.participant_id, a.score DESC, a.correct_count DESC,
+                 a.server_ms ASC, a.best_streak DESC, a.submitted_at ASC)
+     SELECT name, score, ROW_NUMBER() OVER (
+              ORDER BY score DESC, correct_count DESC, server_ms ASC,
+                       best_streak DESC, submitted_at ASC)::int rank
        FROM best ORDER BY rank`,
     [organizationId],
   );

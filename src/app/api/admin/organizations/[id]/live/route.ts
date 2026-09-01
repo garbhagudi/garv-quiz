@@ -63,18 +63,22 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
       (SELECT COALESCE(json_agg(t), '[]'::json) FROM (
          SELECT b.id, b.name, b.score, b.max_score,
                 ROW_NUMBER() OVER (
-                  ORDER BY b.score DESC, b.answer_ms ASC, b.submitted_at ASC
+                  ORDER BY b.score DESC, b.correct_count DESC, b.server_ms ASC,
+                           b.best_streak DESC, b.submitted_at ASC
                 )::int AS rank
            FROM (
              SELECT DISTINCT ON (a.participant_id)
-                    a.id, p.name, a.score, a.max_score, a.answer_ms, a.submitted_at
+                    a.id, p.name, a.score, a.max_score, a.correct_count,
+                    a.server_ms, a.best_streak, a.submitted_at
                FROM attempts a
                JOIN participants p ON p.id = a.participant_id
               WHERE a.organization_id = ${id} AND a.status = 'completed'
                 AND a.is_deleted = false AND p.is_deleted = false
-              ORDER BY a.participant_id, a.score DESC, a.answer_ms ASC, a.submitted_at ASC
+              ORDER BY a.participant_id, a.score DESC, a.correct_count DESC,
+                       a.server_ms ASC, a.best_streak DESC, a.submitted_at ASC
            ) b
-          ORDER BY b.score DESC, b.answer_ms ASC, b.submitted_at ASC
+          ORDER BY b.score DESC, b.correct_count DESC, b.server_ms ASC,
+                   b.best_streak DESC, b.submitted_at ASC
           LIMIT 5
        ) t)                                                                    AS top
   `) as unknown as {

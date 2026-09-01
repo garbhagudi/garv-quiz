@@ -252,6 +252,8 @@ export function Modal({
 /* ------------------------------- formatting ------------------------------ */
 
 export const secs = (ms: number) => {
+  // A row that is missing the field renders an em dash rather than "NaNm NaNs".
+  if (!Number.isFinite(ms)) return "—";
   const t = Math.max(0, ms) / 1000;
   if (t < 60) return `${t.toFixed(1)}s`;
   const m = Math.floor(t / 60);

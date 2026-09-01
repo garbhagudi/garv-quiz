@@ -300,6 +300,67 @@ CREATE INDEX IF NOT EXISTS attempts_live_board_idx
 --  seeds and the verify scripts do exactly that — still behaves correctly.
 -- ===========================================================================
 
+-- ===========================================================================
+--  How a winner is decided
+--
+--  Ranking is score, then accuracy, then speed, then longest correct streak.
+--  Two of those need columns of their own:
+--
+--    server_ms    how long the run took by THIS server's clock, not the
+--                 browser's. `answer_ms` is the sum of per-question times the
+--                 phone reported, and a crafted request could report 1ms a
+--                 question and win every tie. Prizes hang on the tie-break, so
+--                 it is measured where it cannot be edited.
+--
+--    best_streak  the longest run of consecutive correct answers in the order
+--                 they were served. Worked out when the attempt is marked.
+--
+--  Both backfill from data already on hand, so an existing database ranks its
+--  old attempts the same way as its new ones instead of sorting them to the
+--  front on a zero.
+-- ===========================================================================
+
+ALTER TABLE attempts ADD COLUMN IF NOT EXISTS server_ms   integer NOT NULL DEFAULT 0;
+ALTER TABLE attempts ADD COLUMN IF NOT EXISTS best_streak integer NOT NULL DEFAULT 0;
+
+-- Only touches rows still sitting at the default, so re-running is free.
+UPDATE attempts
+   SET server_ms = LEAST(
+         2147483647,
+         GREATEST(0, EXTRACT(EPOCH FROM (submitted_at - started_at)) * 1000)
+       )::int
+ WHERE server_ms = 0 AND submitted_at IS NOT NULL AND started_at IS NOT NULL;
+
+WITH runs AS (
+  SELECT attempt_id, is_correct,
+         position - ROW_NUMBER() OVER (
+           PARTITION BY attempt_id, is_correct ORDER BY position
+         ) AS grp
+    FROM answers
+),
+longest AS (
+  SELECT attempt_id, max(len)::int AS mx FROM (
+    SELECT attempt_id, grp, count(*) AS len
+      FROM runs WHERE is_correct GROUP BY attempt_id, grp
+  ) r GROUP BY attempt_id
+)
+UPDATE attempts a SET best_streak = longest.mx
+  FROM longest
+ WHERE a.id = longest.attempt_id AND a.best_streak = 0;
+
+-- The board reads in the new order, so the indexes that serve it do too.
+DROP INDEX IF EXISTS attempts_board_idx;
+CREATE INDEX IF NOT EXISTS attempts_board_idx
+  ON attempts (organization_id, score DESC, correct_count DESC, server_ms ASC,
+               best_streak DESC, submitted_at ASC)
+  WHERE status = 'completed';
+
+DROP INDEX IF EXISTS attempts_live_board_idx;
+CREATE INDEX IF NOT EXISTS attempts_live_board_idx
+  ON attempts (organization_id, score DESC, correct_count DESC, server_ms ASC,
+               best_streak DESC, submitted_at ASC)
+  WHERE status = 'completed' AND is_deleted = false;
+
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS correct_indexes jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS image_url       text  NOT NULL DEFAULT '';
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS image_alt       text  NOT NULL DEFAULT '';

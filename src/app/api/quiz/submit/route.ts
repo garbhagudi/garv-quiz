@@ -147,6 +147,13 @@ export const POST = route(async (req: Request) => {
              question_count = ${served.length},
              answer_ms     = ${marked.answerMs},
              elapsed_ms    = ${elapsedMs},
+             best_streak   = ${marked.bestStreak},
+             -- Measured here, from this server's clock, because the tie-break
+             -- rides on it. answer_ms above is only what the phone reported.
+             server_ms     = LEAST(
+                               2147483647,
+                               GREATEST(0, EXTRACT(EPOCH FROM (now() - started_at)) * 1000)
+                             )::int,
              submitted_at  = now()
        WHERE id = ${attempt.id} AND status = 'in_progress'`,
   ]);

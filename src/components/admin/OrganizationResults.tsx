@@ -28,7 +28,7 @@ import {
 import { OrganizationForm, draftFromOrganization, type OrganizationDraft, type SetOption } from "./OrganizationForm";
 import type { Organization } from "@/lib/types";
 import { QuestionText } from "@/components/QuestionText";
-import { RunPanel, fmtLeft } from "./RunPanel";
+import { RunPanel, fmtLeft, type RunResult } from "./RunPanel";
 
 /* -------------------------------- shapes --------------------------------- */
 
@@ -48,6 +48,8 @@ type Result = {
   accuracy: number;
   answer_ms: number;
   elapsed_ms: number;
+  server_ms: number;
+  best_streak: number;
   submitted_at: string;
   attempt_no: number;
   attempts_by_student: number;
@@ -109,6 +111,13 @@ export function OrganizationResults({
   compact?: boolean;
 }) {
   const [data, setData] = useState<Detail | null>(null);
+  /* The live board is kept apart from `data.results` on purpose. /live returns
+     five slim rows - id, name, score, max_score, rank - which is all the board
+     draws. Folding those into `results` replaced the full table with them, so
+     the Results tab silently dropped to five rows and every column the slim row
+     lacks (answering time, accuracy, phone) rendered from `undefined`. That is
+     where the "NaNm NaNs" came from. */
+  const [liveTop, setLiveTop] = useState<RunResult[] | null>(null);
   const [sets, setSets] = useState<SetOption[]>([]);
   // The run screen opens first: on the day, starting the round is what this
   // page is for. Reading results at a desk is one click away.
@@ -181,10 +190,11 @@ export function OrganizationResults({
             organization: Organization;
             timeLimitSeconds: number | null;
             summary: Detail["summary"];
-            top: Result[];
+            top: RunResult[];
           }>(
             `/api/admin/organizations/${organizationId}/live`,
           );
+          setLiveTop(live.top);
           // Patch in only what the run screen draws; the other tabs keep the
           // data the last full load gave them.
           setData((cur) =>
@@ -194,7 +204,6 @@ export function OrganizationResults({
                   organization: { ...cur.organization, ...live.organization },
                   timeLimitSeconds: live.timeLimitSeconds ?? cur.timeLimitSeconds,
                   summary: { ...cur.summary, ...live.summary },
-                  results: live.top.length ? live.top : cur.results,
                 }
               : cur,
           );
@@ -476,8 +485,10 @@ export function OrganizationResults({
                     {s.collect_class ? <th>Class</th> : null}
                     <th className="text-right">Score</th>
                     <th className="text-right">Accuracy</th>
+                    {/* The three the rank turns on, after score. */}
+                    <th className="text-right">Time</th>
+                    <th className="text-right">Streak</th>
                     <th className="text-right">Answer time</th>
-                    <th className="text-right">Total time</th>
                     <th>Submitted</th>
                     <th />
                   </tr>
@@ -516,8 +527,9 @@ export function OrganizationResults({
                         <span className="text-[12px] font-normal text-muted">/{r.max_score}</span>
                       </td>
                       <td className="text-right tabular-nums">{r.accuracy}%</td>
-                      <td className="text-right tabular-nums">{secs(r.answer_ms)}</td>
-                      <td className="text-right tabular-nums text-muted">{secs(r.elapsed_ms)}</td>
+                      <td className="text-right tabular-nums">{secs(r.server_ms)}</td>
+                      <td className="text-right tabular-nums">{r.best_streak}</td>
+                      <td className="text-right tabular-nums text-muted">{secs(r.answer_ms)}</td>
                       <td className="whitespace-nowrap text-[12.5px] text-muted">
                         {when(r.submitted_at)}
                       </td>
@@ -606,7 +618,7 @@ export function OrganizationResults({
             </Link>
           }
           summary={data.summary}
-          top={data.results.slice(0, 5)}
+          top={liveTop ?? data.results.slice(0, 5)}
           live={live}
           ended={ended}
           leftMs={leftMs}

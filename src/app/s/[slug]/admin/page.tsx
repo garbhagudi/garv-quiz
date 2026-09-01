@@ -49,8 +49,8 @@ export default async function OrganizationAdminPage({ params }: Props) {
               <LoginForm />
             </Suspense>
             <p className="mt-4 text-center">
-              <Link href={`/s/${organization.slug}/dashboard`} className="linkish">
-                Student? Open your own dashboard
+              <Link href={`/s/${organization.slug}`} className="linkish">
+                Student? Go to the quiz
               </Link>
             </p>
           </main>

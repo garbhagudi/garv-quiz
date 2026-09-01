@@ -84,6 +84,47 @@ check("all correct scores full marks, including the 2-point question", () => {
   eq(m.maxScore, 4, "maxScore");
   eq(m.correctCount, 3, "correctCount");
   eq(m.answerMs, 6000, "answerMs");
+  eq(m.bestStreak, 3, "bestStreak");
+});
+
+/* ---------------------- the streak the rank turns on ---------------------- */
+
+/** Five one-mark questions, so a streak is easy to read off the pattern. */
+const five: ServedQuestion[] = [0, 1, 2, 3, 4].map((p) => ({
+  p,
+  qid: p + 1,
+  text: `Q${p + 1}`,
+  opts: ["right", "wrong"],
+  ci: 0,
+  pts: 1,
+}));
+
+/** `pattern` is one character per question: t = answered correctly. */
+const streakOf = (pattern: string) =>
+  markSubmission(
+    five,
+    [...pattern].map((c, i) => ({ position: i, optionIndex: c === "t" ? 0 : 1, ms: 100 })),
+  ).bestStreak;
+
+check("the best streak is the longest run of correct answers, not the total", () => {
+  eq(streakOf("ttttt"), 5, "all right");
+  eq(streakOf("fffff"), 0, "all wrong");
+  eq(streakOf("ttfff"), 2, "a run at the start");
+  eq(streakOf("ffttt"), 3, "a run at the end");
+  eq(streakOf("ftftf"), 1, "alternating never builds one");
+  // Four right either way, but one kept them together.
+  eq(streakOf("ttfttt".slice(0, 5)), 2, "broken in the middle");
+  eq(streakOf("tttft"), 3, "the longest run wins, not the last");
+});
+
+check("a skipped question breaks the streak just like a wrong one", () => {
+  // Only positions 0 and 1 answered, both right, then nothing.
+  const m = markSubmission(five, [
+    { position: 0, optionIndex: 0, ms: 10 },
+    { position: 1, optionIndex: 0, ms: 10 },
+  ]);
+  eq(m.correctCount, 2, "correctCount");
+  eq(m.bestStreak, 2, "bestStreak");
 });
 
 check("all wrong scores zero but still reports maxScore", () => {

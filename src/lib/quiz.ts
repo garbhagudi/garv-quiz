@@ -190,6 +190,8 @@ export type Marked = {
   maxScore: number;
   correctCount: number;
   answerMs: number;
+  /** Longest run of consecutive correct answers, in the order they were served. */
+  bestStreak: number;
   rows: {
     position: number;
     questionId: number | null;
@@ -222,6 +224,10 @@ export function markSubmission(served: ServedQuestion[], answers: SubmittedAnswe
   let maxScore = 0;
   let correctCount = 0;
   let answerMs = 0;
+  // Counted in served order, which is the order the student actually met the
+  // questions - a streak means "got these right one after another".
+  let streak = 0;
+  let bestStreak = 0;
 
   const rows = served.map((q) => {
     const given = byPosition.get(q.p);
@@ -240,6 +246,10 @@ export function markSubmission(served: ServedQuestion[], answers: SubmittedAnswe
     if (isCorrect) {
       score += q.pts;
       correctCount += 1;
+      streak += 1;
+      if (streak > bestStreak) bestStreak = streak;
+    } else {
+      streak = 0;
     }
 
     return {
@@ -254,7 +264,7 @@ export function markSubmission(served: ServedQuestion[], answers: SubmittedAnswe
     };
   });
 
-  return { score, maxScore, correctCount, answerMs, rows };
+  return { score, maxScore, correctCount, answerMs, bestStreak, rows };
 }
 
 /** mm:ss.s for the UI; the DB always keeps raw milliseconds. */

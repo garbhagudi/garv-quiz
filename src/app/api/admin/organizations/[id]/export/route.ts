@@ -63,6 +63,10 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
     "Accuracy %": r.question_count
       ? Math.round((r.correct_count / r.question_count) * 1000) / 10
       : 0,
+    // The rank turns on these two after score and accuracy, so they lead.
+    Time: formatMs(r.server_ms),
+    "Time (ms)": r.server_ms,
+    "Best streak": r.best_streak,
     "Answer time": formatMs(r.answer_ms),
     "Answer time (ms)": r.answer_ms,
     "Total time": formatMs(r.elapsed_ms),
