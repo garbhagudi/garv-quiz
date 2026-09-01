@@ -21,6 +21,8 @@ import {
 import { nameMatches } from "../src/lib/identity.ts";
 import {
   acceptingEntries,
+  canOpenWaitingRoom,
+  canStartRound,
   closesInMs,
   roundEnded,
   roundRunning,
@@ -652,6 +654,54 @@ check("an event with no deadline is decided by the switch alone", () => {
   eq(acceptingEntries({ is_open: false, closes_at: null }, T0), false);
   eq(closesInMs({ closes_at: null }, T0), null, "no deadline to count down");
   eq(roundEnded({ is_open: true, closes_at: null }, T0), false, "nothing to end");
+});
+
+/* --------------------- which buttons the host is offered ------------------
+   This screen exists twice, so these rules live in one place. Every state is
+   pinned here, including "Round over", where an earlier inline copy of the
+   waiting-room rule hid the button and left a finished event with no way back
+   to a lobby. */
+
+const CLOSED = { is_open: false, closes_at: null };
+const LOBBY = { is_open: true, closes_at: null };
+const RUNNING = { is_open: true, closes_at: at(60_000) };
+const OVER = { is_open: true, closes_at: at(-1_000) };
+const LIMIT = 60;
+
+check("a timed event offers Start until a clock is actually ticking", () => {
+  eq(canStartRound(CLOSED, LIMIT, T0), true, "closed");
+  eq(canStartRound(LOBBY, LIMIT, T0), true, "waiting room, not started");
+  eq(canStartRound(RUNNING, LIMIT, T0), false, "counting down");
+  eq(canStartRound(OVER, LIMIT, T0), true, "round over, so another may be run");
+});
+
+check("an untimed event offers Start only while it is shut", () => {
+  eq(canStartRound(CLOSED, null, T0), true, "closed");
+  eq(canStartRound(LOBBY, null, T0), false, "open, and there is no clock to start");
+});
+
+check("the waiting room is offered whenever the doors are not already open", () => {
+  eq(canOpenWaitingRoom(CLOSED, LIMIT, T0), true, "closed");
+  eq(canOpenWaitingRoom(OVER, LIMIT, T0), true, "round over - the next round wants a lobby too");
+  eq(canOpenWaitingRoom(LOBBY, LIMIT, T0), false, "already open");
+  eq(canOpenWaitingRoom(RUNNING, LIMIT, T0), false, "already running");
+});
+
+check("an untimed event has no waiting room at all", () => {
+  eq(canOpenWaitingRoom(CLOSED, null, T0), false, "closed");
+  eq(canOpenWaitingRoom(LOBBY, null, T0), false, "open");
+});
+
+check("every state offers at least one way forward", () => {
+  for (const [label, o] of [["closed", CLOSED], ["lobby", LOBBY], ["running", RUNNING], ["over", OVER]] as const) {
+    for (const limit of [LIMIT, null]) {
+      const stuck =
+        !canStartRound(o, limit, T0) &&
+        !canOpenWaitingRoom(o, limit, T0) &&
+        !acceptingEntries(o, T0);
+      eq(stuck, false, `${label} / ${limit === null ? "untimed" : "timed"} is a dead end`);
+    }
+  }
 });
 
 check("a running round is open until its deadline, then closed", () => {

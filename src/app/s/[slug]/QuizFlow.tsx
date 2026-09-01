@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, apiRetry, errText, ApiCallError } from "@/lib/client";
+import { api, apiRetry, errText } from "@/lib/client";
 import { Dots, Loading, PrizeNote } from "@/components/Stage";
 import { QuestionText } from "@/components/QuestionText";
 
@@ -22,6 +21,23 @@ type ClientQuestion = {
 };
 type Answer = { position: number; optionIndexes: number[]; ms: number };
 
+/** How big the quiz is, without a word of what is in it. */
+type QuizShape = {
+  total: number;
+  marks: number;
+  multiCount: number;
+  pointsEach: number;
+  mixedMarks: boolean;
+};
+
+const shapeOf = (questions: ClientQuestion[]): QuizShape => ({
+  total: questions.length,
+  marks: questions.reduce((sum, q) => sum + q.pts, 0),
+  multiCount: questions.filter((q) => q.multi).length,
+  pointsEach: questions[0]?.pts ?? 1,
+  mixedMarks: new Set(questions.map((q) => q.pts)).size > 1,
+});
+
 type StartResponse = {
   attemptId: string;
   questions: ClientQuestion[];
@@ -30,23 +46,37 @@ type StartResponse = {
   student: { name: string };
 };
 
+/**
+ * What comes back instead when the round has not started: registered, but with
+ * nothing to answer yet. `beginsInMs` is null while the host has still not
+ * pressed Start, and a countdown once they have.
+ */
+type WaitingResponse = {
+  waiting: true;
+  beginsInMs: number | null;
+  timeLimitSeconds: number | null;
+  summary: QuizShape;
+  student: { name: string };
+};
+
 type SubmitResponse = {
   score: number | null;
   maxScore: number;
   correctCount: number | null;
   questionCount: number;
-  showLeaderboard: boolean;
+  /** Summed thinking time - the number that breaks ties when winners are picked. */
+  answerMs: number;
   alreadySubmitted?: boolean;
 };
 
-type BoardResponse = {
-  count: number;
-  outOf: number;
-  you: { rank: number; score: number; maxScore: number; name: string } | null;
-  top: { rank: number; name: string; score: number; maxScore: number }[];
-};
-
-type Screen = "register" | "instructions" | "quiz" | "saving" | "saveFailed" | "done" | "board";
+type Screen =
+  | "register"
+  | "waiting"
+  | "instructions"
+  | "quiz"
+  | "saving"
+  | "saveFailed"
+  | "done";
 
 export type QuizFlowProps = {
   slug: string;
@@ -59,11 +89,20 @@ export type QuizFlowProps = {
   timeLimitSeconds: number | null;
   requireEmail: boolean;
   collectClass: boolean;
-  showLeaderboard: boolean;
   prizeNote: string;
 };
 
 const fmtSeconds = (ms: number) => `${(Math.max(0, ms) / 1000).toFixed(1)}s`;
+
+/**
+ * How long they took, for the finish screen. Seconds under a minute, m:ss above
+ * it - the same number the host ranks ties by, so it reads the same on both
+ * screens.
+ */
+const fmtTaken = (ms: number) => {
+  const t = Math.max(0, Math.round(ms / 1000));
+  return t < 60 ? `${t}s` : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+};
 
 /** m:ss, for a countdown — rounded up so it only shows 0:00 when time is up. */
 const fmtClock = (ms: number) => {
@@ -95,6 +134,16 @@ export function QuizFlow(props: QuizFlowProps) {
 
   const [result, setResult] = useState<SubmitResponse | null>(null);
 
+  /* ----------------------------- waiting room ---------------------------- */
+
+  // What to draw on the rules while they wait, and when the questions arrive.
+  // `beginsAt` is a wall-clock instant rather than a remaining count, so a
+  // phone that sleeps through the lead-in catches up instead of starting late.
+  const [shape, setShape] = useState<QuizShape | null>(null);
+  const [beginsAt, setBeginsAt] = useState<number | null>(null);
+  const [beginsInMs, setBeginsInMs] = useState<number | null>(null);
+  const entering = useRef(false);
+
   /* ------------------------------ register ------------------------------- */
 
   async function start(e: React.FormEvent) {
@@ -108,20 +157,139 @@ export function QuizFlow(props: QuizFlowProps) {
 
     setBusy(true);
     try {
-      const data = await api<StartResponse>("/api/quiz/start", {
+      const data = await api<StartResponse | WaitingResponse>("/api/quiz/start", {
         body: { slug: props.slug, ...form },
       });
       answers.current = [];
-      setAttemptId(data.attemptId);
-      setQuestions(data.questions);
       setTimeLimitSeconds(data.timeLimitSeconds ?? null);
       setIndex(0);
+
+      // Registered, but the round has not started. Nothing to answer yet, so
+      // they read the rules here and the page watches for the host.
+      if ("waiting" in data) {
+        setShape(data.summary);
+        setBeginsAt(data.beginsInMs === null ? null : Date.now() + data.beginsInMs);
+        setBeginsInMs(data.beginsInMs);
+        setScreen("waiting");
+        setBusy(false);
+        return;
+      }
+
+      setAttemptId(data.attemptId);
+      setQuestions(data.questions);
+      setShape(shapeOf(data.questions));
       setScreen("instructions");
     } catch (err) {
       setError(errText(err));
       setBusy(false);
     }
   }
+
+  /**
+   * The second half of registering: the round is on, so open the attempt and
+   * take the questions. Called when the lead-in runs out, never before — the
+   * server stamps `started_at` here, and that is what the clock is read from at
+   * both ends, so it has to be the moment the questions actually appear.
+   */
+  const enter = useCallback(async () => {
+    if (entering.current) return;
+    entering.current = true;
+    try {
+      const data = await apiRetry<StartResponse | WaitingResponse>("/api/quiz/start", {
+        body: { slug: props.slug, ...form },
+      });
+      if ("waiting" in data) {
+        // The host closed it again between the countdown and this call.
+        setBeginsAt(data.beginsInMs === null ? null : Date.now() + data.beginsInMs);
+        setBeginsInMs(data.beginsInMs);
+        entering.current = false;
+        return;
+      }
+      answers.current = [];
+      setAttemptId(data.attemptId);
+      setQuestions(data.questions);
+      setIndex(0);
+      runStart.current = Date.now();
+      const limit = data.timeLimitSeconds ?? null;
+      setTimeLimitSeconds(limit);
+      if (limit) {
+        deadline.current = Date.now() + limit * 1000;
+        setRemainingMs(limit * 1000);
+      }
+      setScreen("quiz");
+    } catch (err) {
+      setError(errText(err));
+      entering.current = false;
+    }
+  }, [form, props.slug]);
+
+  /**
+   * While they wait, ask the public route how the event is doing. It is the
+   * same cheap query the landing page already runs, and it answers the only two
+   * questions this screen has: has the host started, and how long until the
+   * questions appear.
+   *
+   * `beginsInMs` is a duration measured on the server, so every phone counts
+   * down to the same instant however late it happened to ask — one that only
+   * hears about the round three seconds in shows a shorter countdown rather
+   * than starting three seconds behind the room.
+   */
+  useEffect(() => {
+    if (screen !== "waiting") return;
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      if (!document.hidden) {
+        try {
+          const r = await api<{
+            organization: { isOpen: boolean; notStarted: boolean; beginsInMs: number | null };
+          }>(`/api/public/organization?code=${encodeURIComponent(props.slug)}`, { method: "GET" });
+          if (stop) return;
+          const o = r.organization;
+          if (!o.notStarted && o.beginsInMs !== null) {
+            setBeginsAt(Date.now() + o.beginsInMs);
+            setBeginsInMs(o.beginsInMs);
+          } else if (!o.notStarted && o.isOpen && o.beginsInMs === null) {
+            // Untimed, and now open — nothing to count down to.
+            void enter();
+            return;
+          }
+        } catch {
+          /* hall wifi; the next tick will do */
+        }
+      }
+      timer = setTimeout(poll, 2_000);
+    };
+    void poll();
+
+    const onVisible = () => {
+      if (!document.hidden) {
+        clearTimeout(timer);
+        void poll();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [screen, props.slug, enter]);
+
+  /** The lead-in itself: tick down to the shared instant, then take the questions. */
+  useEffect(() => {
+    if (screen !== "waiting" || beginsAt === null) return;
+    const tick = setInterval(() => {
+      const left = beginsAt - Date.now();
+      setBeginsInMs(Math.max(0, left));
+      if (left <= 0) {
+        clearInterval(tick);
+        void enter();
+      }
+    }, 100);
+    return () => clearInterval(tick);
+  }, [screen, beginsAt, enter]);
 
   /* -------------------------------- submit ------------------------------- */
 
@@ -194,7 +362,6 @@ export function QuizFlow(props: QuizFlowProps) {
       <Closed
         title="Not ready yet"
         body="This event has no questions set up. Let the team know."
-        slug={props.slug}
       />
     );
 
@@ -202,8 +369,7 @@ export function QuizFlow(props: QuizFlowProps) {
     return (
       <Closed
         title="This quiz has closed"
-        body="If you already played, your score and rank are on your dashboard."
-        slug={props.slug}
+        body="If you already played, your answers are safely recorded."
       />
     );
 
@@ -219,13 +385,23 @@ export function QuizFlow(props: QuizFlowProps) {
       />
     );
 
+  if (screen === "waiting")
+    return (
+      <Waiting
+        name={form.name}
+        shape={shape}
+        timeLimitSeconds={timeLimitSeconds}
+        beginsInMs={beginsInMs}
+        prizeNote={props.prizeNote}
+      />
+    );
+
   if (screen === "instructions")
     return (
       <Instructions
         questions={questions}
         name={form.name}
         timeLimitSeconds={timeLimitSeconds}
-        showLeaderboard={props.showLeaderboard}
         prizeNote={props.prizeNote}
         onBegin={begin}
       />
@@ -270,27 +446,19 @@ export function QuizFlow(props: QuizFlowProps) {
         result={result}
         name={form.name}
         prizeNote={props.prizeNote}
-        slug={props.slug}
-        onBoard={() => setScreen("board")}
       />
     );
-
-  if (screen === "board")
-    return <Leaderboard slug={props.slug} attemptId={attemptId} />;
 
   return <Loading label="Loading…" />;
 }
 
 /* ============================== sub-screens ============================== */
 
-function Closed({ title, body, slug }: { title: string; body: string; slug: string }) {
+function Closed({ title, body }: { title: string; body: string }) {
   return (
     <>
       <h1 className="mb-3 font-display text-[28px] font-bold leading-tight text-plum">{title}</h1>
       <p className="mb-5 text-[15.5px] leading-relaxed text-[#463359]">{body}</p>
-      <Link href={`/s/${slug}/dashboard`} className="btn-ghost">
-        Open my dashboard
-      </Link>
     </>
   );
 }
@@ -409,11 +577,6 @@ function RegisterForm({
           : `about ${Math.max(2, Math.round(questionCount / 3))} minutes`}
         {played > 0 ? ` · ${played} already played` : ""}
       </p>
-      <p className="mt-3 text-center">
-        <Link href={`/s/${slug}/dashboard`} className="linkish">
-          Already played? See your score
-        </Link>
-      </p>
     </form>
   );
 }
@@ -431,25 +594,97 @@ function RegisterForm({
  * It gives away nothing the phone was not already told — `multi` and `pts`
  * arrive with the questions themselves. The answer key never comes near it.
  */
+/**
+ * The waiting room.
+ *
+ * They are registered and the host has not started yet, so this screen has one
+ * job beyond saying so: spend the wait on the rules, which is time the round no
+ * longer has to pay for. Nothing here came from the question bank — only how
+ * many questions there are and what they are worth.
+ */
+function Waiting({
+  name,
+  shape,
+  timeLimitSeconds,
+  beginsInMs,
+  prizeNote,
+}: {
+  name: string;
+  shape: QuizShape | null;
+  timeLimitSeconds: number | null;
+  /** Null until the host presses Start; then the lead-in, counting down. */
+  beginsInMs: number | null;
+  prizeNote: string;
+}) {
+  const first = name.trim().split(" ")[0];
+  const starting = beginsInMs !== null;
+  const seconds = Math.max(0, Math.ceil((beginsInMs ?? 0) / 1000));
+
+  return (
+    <>
+      {starting ? (
+        <div className="mb-4 text-center" role="status" aria-live="assertive">
+          <p className="font-display text-[13px] font-medium uppercase tracking-[0.16em] text-plum-soft">
+            Get ready
+          </p>
+          <div className="mt-1 font-display text-[72px] font-bold leading-none tabular-nums text-plum">
+            {seconds}
+          </div>
+          <p className="mt-1 text-[14px] text-plum-soft">
+            The first question is about to appear. Do not close this page.
+          </p>
+        </div>
+      ) : (
+        <>
+          <h1 className="mb-1.5 font-display text-[28px] font-bold leading-tight text-plum">
+            {first ? `You are in, ${first}` : "You are in"}
+          </h1>
+          <p className="mb-4 font-display text-[19px] font-light leading-snug text-plum-soft">
+            Waiting for the host to start the quiz. Keep this page open — it begins on its own.
+          </p>
+          <div
+            className="mb-4 flex items-center justify-center gap-2.5 rounded-2xl bg-petal px-4 py-3"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-plum"
+              aria-hidden="true"
+            />
+            <span className="text-[14px] text-plum-soft">Waiting for the host…</span>
+          </div>
+        </>
+      )}
+
+      {shape ? (
+        <>
+          <p className="mb-3 text-center text-[13px] text-muted">
+            {starting ? "One last look:" : "While you wait, read this — it is worth marks."}
+          </p>
+          <Counts shape={shape} timeLimitSeconds={timeLimitSeconds} />
+          <Rules shape={shape} timeLimitSeconds={timeLimitSeconds} />
+        </>
+      ) : null}
+
+      <PrizeNote text={prizeNote} />
+    </>
+  );
+}
+
 function Instructions({
   questions,
   name,
   timeLimitSeconds,
-  showLeaderboard,
   prizeNote,
   onBegin,
 }: {
   questions: ClientQuestion[];
   name: string;
   timeLimitSeconds: number | null;
-  showLeaderboard: boolean;
   prizeNote: string;
   onBegin: () => void;
 }) {
-  const total = questions.length;
-  const marks = questions.reduce((sum, q) => sum + q.pts, 0);
-  const multiCount = questions.filter((q) => q.multi).length;
-  const mixedMarks = new Set(questions.map((q) => q.pts)).size > 1;
+  const shape = shapeOf(questions);
   const first = name.trim().split(" ")[0];
   const limitMinutes = timeLimitSeconds ? Math.round(timeLimitSeconds / 60) : 0;
 
@@ -462,6 +697,35 @@ function Instructions({
         Read this once — it takes ten seconds and it is worth marks.
       </p>
 
+      <Counts shape={shape} timeLimitSeconds={timeLimitSeconds} />
+      <Rules shape={shape} timeLimitSeconds={timeLimitSeconds} />
+
+      <PrizeNote text={prizeNote} />
+
+      <button className="btn-primary" onClick={onBegin}>
+        Start the quiz
+      </button>
+      <p className="hint mt-2.5">
+        {limitMinutes
+          ? `Your ${limitMinutes} minute${limitMinutes === 1 ? "" : "s"} start the moment you tap this.`
+          : "The clock starts on the first question."}
+      </p>
+    </>
+  );
+}
+
+/** The two or three numbers that decide how hard to push. */
+function Counts({
+  shape,
+  timeLimitSeconds,
+}: {
+  shape: QuizShape;
+  timeLimitSeconds: number | null;
+}) {
+  const { total, marks } = shape;
+  const limitMinutes = timeLimitSeconds ? Math.round(timeLimitSeconds / 60) : 0;
+  return (
+    <>
       {/* The two numbers that decide how hard to push. */}
       <div className={`mb-4 grid gap-2.5 ${limitMinutes ? "grid-cols-3" : "grid-cols-2"}`}>
         <Tile value={total} label={total === 1 ? "question" : "questions"} />
@@ -471,6 +735,22 @@ function Instructions({
         ) : null}
       </div>
 
+    </>
+  );
+}
+
+/** The rules themselves, shared by the waiting room and the pre-start screen. */
+function Rules({
+  shape,
+  timeLimitSeconds,
+}: {
+  shape: QuizShape;
+  timeLimitSeconds: number | null;
+}) {
+  const { multiCount, mixedMarks, pointsEach } = shape;
+  const limitMinutes = timeLimitSeconds ? Math.round(timeLimitSeconds / 60) : 0;
+
+  return (
       <ul className="mb-4 space-y-2.5">
         <Rule icon="☝️">
           <b>One tap locks your answer.</b> You cannot go back and you cannot change it, so read
@@ -498,8 +778,8 @@ function Instructions({
             </>
           ) : (
             <>
-              <b>Every question is worth {questions[0]?.pts ?? 1} mark
-              {(questions[0]?.pts ?? 1) === 1 ? "" : "s"}.</b> Each one shows this in the top corner.
+              <b>Every question is worth {pointsEach} mark
+              {pointsEach === 1 ? "" : "s"}.</b> Each one shows this in the top corner.
             </>
           )}
         </Rule>
@@ -509,15 +789,15 @@ function Instructions({
             <b>
               You have {limitMinutes} minute{limitMinutes === 1 ? "" : "s"} for the whole quiz.
             </b>{" "}
-            The countdown starts when you tap Start and runs in the top corner. When it reaches
-            zero your answers are submitted automatically, so anything still unanswered stays
+            The countdown runs in the top corner from the first question. When it reaches zero
+            your answers are submitted automatically, so anything still unanswered stays
             unanswered — keep moving.
           </Rule>
         ) : null}
 
         <Rule icon="⏱️">
           <b>Your time is measured per question</b> — from the moment it appears to the moment you
-          answer. {showLeaderboard ? "Ties on marks are broken by who answered faster." : "Take the time you need to read, but do not idle."}
+          answer. Ties on marks are broken by who answered faster, so do not idle.
         </Rule>
 
         <Rule icon="📶">
@@ -525,18 +805,6 @@ function Instructions({
           tab or hit back.
         </Rule>
       </ul>
-
-      <PrizeNote text={prizeNote} />
-
-      <button className="btn-primary" onClick={onBegin}>
-        Start the quiz
-      </button>
-      <p className="hint mt-2.5">
-        {limitMinutes
-          ? `Your ${limitMinutes} minute${limitMinutes === 1 ? "" : "s"} start the moment you tap this.`
-          : "The clock starts on the first question."}
-      </p>
-    </>
   );
 }
 
@@ -734,187 +1002,61 @@ function Finished({
   result,
   name,
   prizeNote,
-  slug,
-  onBoard,
 }: {
   result: SubmitResponse;
   name: string;
   prizeNote: string;
-  slug: string;
-  onBoard: () => void;
 }) {
   const first = name.trim().split(" ")[0];
   return (
     <>
       <Dots total={result.questionCount} done={result.questionCount} />
       <h1 className="mb-3 font-display text-[28px] font-bold leading-tight text-plum">
-        {first ? `Thanks, ${first}` : "Answers recorded"}
+        {first ? `Thank you, ${first}` : "Thank you for taking part"}
       </h1>
 
       {result.score !== null ? (
-        <p className="mb-3 text-[16.5px] leading-relaxed text-[#463359]">
-          You scored{" "}
-          <b className="text-plum">
-            {result.score} out of {result.maxScore}
-          </b>
-          {result.correctCount !== null && result.correctCount !== result.score ? (
-            <> — {result.correctCount} of {result.questionCount} correct</>
-          ) : null}
-          .
-        </p>
+        <>
+          <p className="mb-3 text-[16.5px] leading-relaxed text-[#463359]">
+            Your answers are in. Here is how you did.
+          </p>
+          <div className="mb-4 grid grid-cols-2 gap-2.5">
+            <ScoreTile
+              value={`${result.score}/${result.maxScore}`}
+              label={
+                result.correctCount !== null
+                  ? `${result.correctCount} of ${result.questionCount} correct`
+                  : "your score"
+              }
+            />
+            <ScoreTile value={fmtTaken(result.answerMs)} label="your time" />
+          </div>
+          <p className="mb-4 text-[15.5px] leading-relaxed text-[#463359]">
+            Winners will be announced by the host shortly. Ties on marks go to the faster time, so
+            hold on to yours.
+          </p>
+        </>
       ) : (
-        <p className="mb-3 text-[16.5px] leading-relaxed text-[#463359]">
-          All {result.questionCount} answers are in. Scores are announced after the session.
+        <p className="mb-4 text-[16.5px] leading-relaxed text-[#463359]">
+          All {result.questionCount} answers are in. Winners will be announced by the host shortly.
         </p>
       )}
 
       <PrizeNote text={prizeNote} />
 
-      {result.showLeaderboard ? (
-        <button className="btn-primary" onClick={onBoard}>
-          View leaderboard
-        </button>
-      ) : null}
-      <Link href={`/s/${slug}/dashboard`} className="btn-ghost mt-2.5">
-        My dashboard
-      </Link>
+      <p className="hint mt-2.5">
+        Nothing more to do here — you can put your phone away.
+      </p>
     </>
   );
 }
 
-function Leaderboard({ slug, attemptId }: { slug: string; attemptId: string }) {
-  const [board, setBoard] = useState<BoardResponse | null>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(true);
-
-  const load = useCallback(async () => {
-    setBusy(true);
-    setError("");
-    try {
-      setBoard(
-        await api<BoardResponse>(
-          `/api/quiz/leaderboard?code=${encodeURIComponent(slug)}&attempt=${encodeURIComponent(attemptId)}`,
-        ),
-      );
-    } catch (e) {
-      setError(e instanceof ApiCallError ? e.message : errText(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [slug, attemptId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (busy && !board) return <Loading label="Loading leaderboard…" />;
-
-  if (error && !board)
-    return (
-      <>
-        <h2 className="mb-3 font-display text-[19px] font-medium text-plum">
-          Leaderboard unavailable
-        </h2>
-        <p className="mb-4 text-[15.5px] leading-relaxed text-[#463359]">
-          {error} Your entry is safely recorded.
-        </p>
-        <button className="btn-ghost" onClick={() => void load()}>
-          Try again
-        </button>
-      </>
-    );
-
-  const you = board?.you ?? null;
-  const outsideTop = you && you.rank > (board?.top.length ?? 10);
-
-  return (
-    <>
-      <h1 className="mb-3 font-display text-[28px] font-bold leading-tight text-plum">
-        Leaderboard
-      </h1>
-      <p className="mb-4 font-display text-[19px] font-light leading-snug text-plum-soft">
-        {you ? (
-          <>
-            You are at rank <b className="font-medium text-plum">{you.rank}</b> of {board?.count}{" "}
-            with <b className="font-medium text-plum">{you.score} points</b>.
-          </>
-        ) : (
-          <>{board?.count ?? 0} students have played so far.</>
-        )}
-      </p>
-
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th className="w-10">Rank</th>
-              <th>Name</th>
-              <th className="text-right">Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            {board?.top.map((r) => (
-              <BoardRow key={r.rank} row={r} isYou={you?.rank === r.rank} />
-            ))}
-            {outsideTop && you ? (
-              <>
-                <tr>
-                  <td colSpan={3} className="text-center text-muted">
-                    ···
-                  </td>
-                </tr>
-                <BoardRow
-                  row={{ rank: you.rank, name: you.name, score: you.score, maxScore: you.maxScore }}
-                  isYou
-                />
-              </>
-            ) : null}
-            {!board?.top.length ? (
-              <tr>
-                <td colSpan={3} className="hint py-4 text-center">
-                  No scores yet.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="hint mt-4">
-        Ties are broken by answering speed, so the final order can differ from this board.
-      </p>
-
-      <button className="btn-ghost mt-4" onClick={() => void load()} disabled={busy}>
-        {busy ? "Refreshing…" : "Refresh leaderboard"}
-      </button>
-      <Link href={`/s/${slug}/dashboard`} className="btn-ghost mt-2.5">
-        My dashboard
-      </Link>
-    </>
-  );
-}
-
-const MEDALS = ["🥇", "🥈", "🥉"];
-
-function BoardRow({
-  row,
-  isYou,
-}: {
-  row: { rank: number; name: string; score: number; maxScore: number };
-  isYou?: boolean;
-}) {
-  return (
-    <tr className={isYou ? "bg-apricot/15" : ""}>
-      <td className="font-display text-[15px] font-medium tabular-nums">
-        {row.rank <= 3 ? MEDALS[row.rank - 1] : row.rank}
-      </td>
-      <td className="font-semibold">
-        {row.name}
-        {isYou ? <b className="ml-2 font-display text-[11px] uppercase text-apricot-deep">you</b> : null}
-      </td>
-      <td className="whitespace-nowrap text-right font-display font-medium tabular-nums">
-        {row.score} pts
-      </td>
-    </tr>
-  );
-}
+/** One of the two numbers on the finish screen. */
+const ScoreTile = ({ value, label }: { value: string; label: string }) => (
+  <div className="rounded-2xl bg-petal px-4 py-3 text-center">
+    <div className="font-display text-[26px] font-bold leading-none tabular-nums text-plum">
+      {value}
+    </div>
+    <div className="mt-1 text-[12.5px] leading-snug text-plum-soft">{label}</div>
+  </div>
+);

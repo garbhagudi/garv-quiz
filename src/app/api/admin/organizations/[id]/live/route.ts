@@ -33,6 +33,13 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
            FROM organizations WHERE id = ${id} AND is_deleted = false
        ) o)                                                                    AS organization,
 
+      -- The run screen needs this to tell an untimed event apart from a timed
+      -- one that has not been started: closes_at is null for both, but only
+      -- the second still has a round to start.
+      (SELECT qs.time_limit_seconds FROM organizations o
+         JOIN question_sets qs ON qs.id = o.question_set_id
+        WHERE o.id = ${id} AND qs.is_deleted = false)                          AS time_limit_seconds,
+
       (SELECT count(*)::int FROM participants
         WHERE organization_id = ${id} AND is_deleted = false)                  AS registered,
 
@@ -72,6 +79,7 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
        ) t)                                                                    AS top
   `) as unknown as {
     organization: { id: number; name: string; slug: string; city: string; is_open: boolean; closes_at: string | null } | null;
+    time_limit_seconds: number | null;
     registered: number;
     completed: number;
     answering: number;
@@ -82,6 +90,7 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
 
   return ok({
     organization: row.organization,
+    timeLimitSeconds: row.time_limit_seconds ?? null,
     summary: {
       registered: row.registered,
       completed: row.completed,

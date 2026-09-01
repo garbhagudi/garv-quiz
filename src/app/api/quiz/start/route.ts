@@ -3,9 +3,8 @@ import { ok, fail, route, readJson, ipHash } from "@/lib/api";
 import { getOrganizationBySlug } from "@/lib/queries";
 import { buildServedQuestions, stripAnswers } from "@/lib/quiz";
 import { registerSchema, emailField, normalizePhone } from "@/lib/validate";
-import { createParticipantSession } from "@/lib/session";
 import { nameMatches } from "@/lib/identity";
-import { acceptingEntries } from "@/lib/eventWindow";
+import { acceptingEntries, beginsInMs, questionsReady, roundNotStarted } from "@/lib/eventWindow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,8 +22,20 @@ export const POST = route(async (req: Request) => {
 
   const organization = await getOrganizationBySlug(input.slug);
   if (!organization) return fail("No event found with that code.", 404, "slug");
+  // The whole-quiz limit lives on the set, so it travels with the questions
+  // wherever they are used. NULL means no limit, which is the common case.
+  // Read before the door is checked, because for a timed event it is part of
+  // the door: there is no round to join until Start has given it a deadline.
+  const [limitRow] = (await sql`
+    SELECT time_limit_seconds FROM question_sets
+     WHERE id = ${organization.question_set_id} AND is_deleted = false
+     LIMIT 1`) as unknown as { time_limit_seconds: number | null }[];
+  const timeLimitSeconds = limitRow?.time_limit_seconds ?? null;
+
   // Closed by hand, or the round ran out — the student cannot tell the
-  // difference and does not need to.
+  // difference and does not need to. A timed event that is open but unstarted
+  // is *not* closed: that is the waiting room, and registering is exactly what
+  // a student does there, so it falls through to the branch further down.
   if (!acceptingEntries(organization))
     return fail("This quiz is closed.", 403);
 
@@ -39,14 +50,6 @@ export const POST = route(async (req: Request) => {
   const served = await buildServedQuestions(organization);
   if (!served.length)
     return fail("This event has no questions set up yet.", 409);
-
-  // The whole-quiz limit lives on the set, so it travels with the questions
-  // wherever they are used. NULL means no limit, which is the common case.
-  const [limitRow] = (await sql`
-    SELECT time_limit_seconds FROM question_sets
-     WHERE id = ${organization.question_set_id} AND is_deleted = false
-     LIMIT 1`) as unknown as { time_limit_seconds: number | null }[];
-  const timeLimitSeconds = limitRow?.time_limit_seconds ?? null;
 
   /* -------------------------- find or create the student -----------------
      There is exactly one row per mobile number per event, for ever. If the
@@ -159,6 +162,40 @@ export const POST = route(async (req: Request) => {
                deleted_by    = NULL
         RETURNING id`) as unknown as { id: number }[];
 
+  /* ---- the waiting room -------------------------------------------------
+     Everything above has happened: they are registered, their number and
+     address are theirs, and the retake rule has let them through. What has not
+     happened is the round — so no attempt is opened, and no questions leave the
+     server. Registering early is the whole point: typing a name and a mobile
+     number is not something to spend a five-minute round on.
+
+     The phone waits, watching /api/public/organization, and calls this route
+     again when the lead-in runs out. That second call finds this same
+     participant by number, opens the attempt, and stamps `started_at` at the
+     moment the questions actually appear — which is what the clock is read
+     from, here and at submit. */
+  if (!questionsReady(organization, timeLimitSeconds)) {
+    // Shape only — how many questions, how many marks, how many take more than
+    // one answer. Derived from the stripped copy, so it is provably free of the
+    // answer key: the room can read the rules while it waits without a single
+    // question leaving the server before the round starts.
+    const shape = stripAnswers(served);
+    return ok({
+      waiting: true,
+      beginsInMs: beginsInMs(organization, timeLimitSeconds),
+      timeLimitSeconds,
+      summary: {
+        total: shape.length,
+        marks: shape.reduce((t, q) => t + q.pts, 0),
+        multiCount: shape.filter((q) => q.multi).length,
+        pointsEach: shape[0]?.pts ?? 1,
+        mixedMarks: new Set(shape.map((q) => q.pts)).size > 1,
+      },
+      student: { name: input.name },
+      organization: { name: organization.name, slug: organization.slug, prizeNote: organization.prize_note },
+    });
+  }
+
   /* --------------------------- open the attempt -------------------------- */
   const [attempt] = (await sql`
     INSERT INTO attempts (
@@ -172,15 +209,6 @@ export const POST = route(async (req: Request) => {
       ${ipHash(req)}, ${(req.headers.get("user-agent") ?? "").slice(0, 300)}
     )
     RETURNING public_id`) as unknown as { public_id: string }[];
-
-  // Log them in so they can reach their dashboard later without retyping.
-  // Postgres bigints arrive as strings, so coerce before they go into the token
-  // — the dashboard compares these ids numerically.
-  await createParticipantSession({
-    pid: Number(participant.id),
-    sid: Number(organization.id),
-    name: input.name,
-  });
 
   return ok({
     attemptId: attempt.public_id,

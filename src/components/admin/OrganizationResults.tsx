@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errText } from "@/lib/client";
 import {
   acceptingEntries,
+  canOpenWaitingRoom,
+  canStartRound,
   closesInMs,
   roundEnded,
   refreshMs,
@@ -73,6 +75,8 @@ type Pending = {
 
 type Detail = {
   organization: Organization;
+  /** The set's whole-quiz limit; null means untimed. */
+  timeLimitSeconds: number | null;
   summary: {
     registered: number;
     completed: number;
@@ -173,7 +177,12 @@ export function OrganizationResults({
     const tick = async () => {
       if (!document.hidden) {
         try {
-          const live = await api<{ organization: Organization; summary: Detail["summary"]; top: Result[] }>(
+          const live = await api<{
+            organization: Organization;
+            timeLimitSeconds: number | null;
+            summary: Detail["summary"];
+            top: Result[];
+          }>(
             `/api/admin/organizations/${organizationId}/live`,
           );
           // Patch in only what the run screen draws; the other tabs keep the
@@ -183,6 +192,7 @@ export function OrganizationResults({
               ? {
                   ...cur,
                   organization: { ...cur.organization, ...live.organization },
+                  timeLimitSeconds: live.timeLimitSeconds ?? cur.timeLimitSeconds,
                   summary: { ...cur.summary, ...live.summary },
                   results: live.top.length ? live.top : cur.results,
                 }
@@ -241,6 +251,20 @@ export function OrganizationResults({
     }
   }
 
+  /** Doors open, clock not running — the room can register and wait. */
+  async function openDoors() {
+    try {
+      await api(`/api/admin/organizations/${organizationId}`, {
+        method: "PATCH",
+        body: { isOpen: true },
+      });
+      setNotice("Waiting room open. Students can register now; Start round begins the clock.");
+      void load();
+    } catch (e) {
+      setError(errText(e));
+    }
+  }
+
   async function toggleOpen() {
     if (!data || !draft) return;
     try {
@@ -272,6 +296,12 @@ export function OrganizationResults({
   const live = acceptingEntries(s, now);
   const ended = roundEnded(s, now);
   const leftMs = closesInMs(s, now);
+  // `closes_at` is null both for an untimed set and for a timed one nobody has
+  // started, so the set's limit is what tells them apart. The two rules the
+  // buttons need live in eventWindow, shared with the standalone run screen.
+  const timed = data.timeLimitSeconds !== null;
+  const showStart = canStartRound(s, data.timeLimitSeconds, now);
+  const showOpenDoors = canOpenWaitingRoom(s, data.timeLimitSeconds, now);
 
   return (
     <>
@@ -285,9 +315,11 @@ export function OrganizationResults({
             {s.event_date ? ` · ${when(s.event_date, false)}` : ""} ·{" "}
             <Chip tone={live ? "good" : "neutral"}>
               {live
-                ? leftMs === null
-                  ? "Open"
-                  : `Open · closes in ${fmtLeft(leftMs)}`
+                ? leftMs !== null
+                  ? `Open · closes in ${fmtLeft(leftMs)}`
+                  : timed
+                    ? "Waiting room"
+                    : "Open"
                 : ended
                   ? "Round over"
                   : "Closed"}
@@ -321,16 +353,25 @@ export function OrganizationResults({
             </a>
             {canWrite ? (
               <>
-                {/* Start is the one that runs a round. The switch beside it is
-                    still there for opening or closing by hand. */}
-                {live && leftMs !== null ? null : (
+                {/* Start is the only way to begin a round, so a timed event
+                    can never be opened without the deadline that makes it
+                    timed. Both can show at once on a timed event that is open
+                    but not started: the door is open, the clock is not. */}
+                {showOpenDoors ? (
+                  <button className="btn-ghost btn-sm" onClick={() => void openDoors()}>
+                    Open waiting room
+                  </button>
+                ) : null}
+                {showStart ? (
                   <button className="btn-primary btn-sm" onClick={() => void startRound()}>
                     {ended ? "Start another round" : "Start round"}
                   </button>
-                )}
-                <button className="btn-ghost btn-sm" onClick={() => void toggleOpen()}>
-                  {live ? "Close entries" : "Reopen entries"}
-                </button>
+                ) : null}
+                {live ? (
+                  <button className="btn-ghost btn-sm" onClick={() => void toggleOpen()}>
+                    Close entries
+                  </button>
+                ) : null}
               </>
             ) : null}
           </>
@@ -569,6 +610,10 @@ export function OrganizationResults({
           live={live}
           ended={ended}
           leftMs={leftMs}
+          timeLimitSeconds={data.timeLimitSeconds ?? null}
+          showStart={showStart}
+          showOpenDoors={showOpenDoors}
+          onOpenDoors={() => void openDoors()}
           canWrite={canWrite}
           onStart={() => void startRound()}
           onClose={() => void toggleOpen()}

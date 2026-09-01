@@ -20,13 +20,10 @@ function getSecret(): Uint8Array {
 }
 
 export const ADMIN_COOKIE = "gg_admin";
-export const PARTICIPANT_COOKIE = "gg_participant";
 
 const ADMIN_TTL = "12h";
-const PARTICIPANT_TTL = "30d";
 
 export type AdminSession = { aid: number; email: string; name: string; role: Role };
-export type ParticipantSession = { pid: number; sid: number; name: string };
 
 async function sign(payload: Record<string, unknown>, ttl: string) {
   return new SignJWT(payload)
@@ -71,18 +68,10 @@ export async function clearAdminSession() {
   (await cookies()).delete(ADMIN_COOKIE);
 }
 
-/* ---------------------------- participant ------------------------------- */
-
-export async function createParticipantSession(s: ParticipantSession) {
-  const token = await sign(s, PARTICIPANT_TTL);
-  (await cookies()).set(PARTICIPANT_COOKIE, token, cookieOptions(60 * 60 * 24 * 30));
-}
-
-export const getParticipantSession = () => read<ParticipantSession>(PARTICIPANT_COOKIE);
-
-export async function clearParticipantSession() {
-  (await cookies()).delete(PARTICIPANT_COOKIE);
-}
+/* Students are not signed in at all. There was a 30-day `gg_participant`
+   cookie here once, carrying a participant id so somebody could return to their
+   own dashboard. The dashboard is gone, so the cookie is too — a quiz that
+   shows nothing back has no reason to leave an identity on a phone. */
 
 /** A viewer may read everything but change nothing. */
 export const canWrite = (s: AdminSession | null) =>

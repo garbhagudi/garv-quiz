@@ -17,10 +17,21 @@ type AttemptRow = {
   max_score: number;
   correct_count: number;
   question_count: number;
+  answer_ms: number;
   show_score: boolean;
-  show_leaderboard: boolean;
   slug: string;
+  time_limit_seconds: number | null;
 };
+
+/**
+ * How late a submission may be and still count.
+ *
+ * The student's countdown is started in their browser once the page has the
+ * questions, which is always a moment after `started_at` was stamped here — so
+ * an honest auto-submit at zero lands a little after the server's own deadline.
+ * That gap is a round trip plus a render, never fifteen seconds.
+ */
+const GRACE_MS = 15_000;
 
 /**
  * POST /api/quiz/submit
@@ -34,8 +45,13 @@ export const POST = route(async (req: Request) => {
 
   const [attempt] = (await sql`
     SELECT a.id, a.organization_id, a.participant_id, a.status, a.served, a.started_at,
-           a.score, a.max_score, a.correct_count, a.question_count,
-           s.show_score, s.show_leaderboard, s.slug
+           a.score, a.max_score, a.correct_count, a.question_count, a.answer_ms,
+           s.show_score, s.slug,
+           -- Read from the set the attempt was built against, not the event's
+           -- current one, so re-pointing an event mid-quiz cannot move the
+           -- deadline of a run that is already going.
+           (SELECT qs.time_limit_seconds FROM question_sets qs
+             WHERE qs.id = a.question_set_id) AS time_limit_seconds
       FROM attempts a
       JOIN organizations s ON s.id = a.organization_id
      WHERE a.public_id = ${input.attemptId}::uuid
@@ -53,11 +69,33 @@ export const POST = route(async (req: Request) => {
       maxScore: attempt.max_score,
       correctCount: attempt.correct_count,
       questionCount: attempt.question_count,
-      showLeaderboard: attempt.show_leaderboard,
+      answerMs: attempt.answer_ms,
       slug: attempt.slug,
     });
   }
   if (attempt.status !== "in_progress") return fail("This attempt is no longer open.", 409);
+
+  /* ---- the student's own clock, enforced here ---------------------------
+     Every other number on an attempt is worked out on this server precisely so
+     a crafted request cannot win; the time limit was the one rule left to the
+     browser. It is a per-attempt window, not the round's: a student who starts
+     four minutes into a five-minute round still gets their full five, which is
+     why this counts from `started_at` and never looks at `closes_at`.
+
+     An expired attempt is marked abandoned rather than left open. It is not
+     coming back, and saying so keeps the host's "still answering" count honest
+     instead of showing a student who walked out an hour ago. */
+  const limitSeconds = attempt.time_limit_seconds;
+  if (limitSeconds) {
+    const startedAt = new Date(attempt.started_at).getTime();
+    const expiredBy = Number.isFinite(startedAt)
+      ? Date.now() - (startedAt + limitSeconds * 1000 + GRACE_MS)
+      : 0;
+    if (expiredBy > 0) {
+      await sql`UPDATE attempts SET status = 'abandoned' WHERE id = ${attempt.id}`;
+      return fail("Your time for this quiz has run out, so this cannot be submitted.", 409);
+    }
+  }
 
   const served = Array.isArray(attempt.served) ? attempt.served : [];
   if (!served.length) return fail("This attempt has no questions recorded. Please start again.", 409);
@@ -119,7 +157,6 @@ export const POST = route(async (req: Request) => {
     correctCount: attempt.show_score ? marked.correctCount : null,
     questionCount: served.length,
     answerMs: marked.answerMs,
-    showLeaderboard: attempt.show_leaderboard,
     slug: attempt.slug,
   });
 });

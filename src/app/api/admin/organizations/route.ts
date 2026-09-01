@@ -49,13 +49,13 @@ export const POST = route(async (req: Request) => {
     INSERT INTO organizations (
       slug, name, city, contact_name, contact_phone, event_date, notes,
       question_set_id, is_open, question_count, shuffle_questions, shuffle_options,
-      allow_retake, show_score, show_leaderboard, require_email, collect_class,
+      allow_retake, show_score, require_email, collect_class,
       prize_note, created_by
     ) VALUES (
       ${v.slug}, ${v.name}, ${v.city}, ${v.contactName}, ${v.contactPhone},
       ${v.eventDate || null}, ${v.notes},
       ${v.questionSetId}, ${v.isOpen}, ${v.questionCount}, ${v.shuffleQuestions},
-      ${v.shuffleOptions}, ${v.allowRetake}, ${v.showScore}, ${v.showLeaderboard},
+      ${v.shuffleOptions}, ${v.allowRetake}, ${v.showScore},
       ${v.requireEmail}, ${v.collectClass},
       ${v.prizeNote || "Winners get exciting gifts from the GarbhaGudi team."},
       ${admin.aid}

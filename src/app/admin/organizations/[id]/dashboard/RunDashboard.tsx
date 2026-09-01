@@ -6,6 +6,8 @@ import { api, errText } from "@/lib/client";
 import { Notice, Spinner, Chip } from "@/components/admin/Ui";
 import { RunPanel, type RunResult, type RunSummary } from "@/components/admin/RunPanel";
 import {
+  canOpenWaitingRoom,
+  canStartRound,
   acceptingEntries,
   closesInMs,
   roundEnded,
@@ -22,7 +24,13 @@ type LiveOrganization = {
   closes_at: string | null;
 };
 
-type Live = { organization: LiveOrganization; summary: RunSummary; top: RunResult[] };
+type Live = {
+  organization: LiveOrganization;
+  /** The set's whole-quiz limit; null means untimed. */
+  timeLimitSeconds: number | null;
+  summary: RunSummary;
+  top: RunResult[];
+};
 
 /**
  * The run screen on a URL of its own, so it can be opened on a second screen
@@ -127,6 +135,20 @@ export function RunDashboard({
     }
   }
 
+  /** Doors open, clock not running — the room can register and wait. */
+  async function openDoors() {
+    try {
+      await api(`/api/admin/organizations/${organizationId}`, {
+        method: "PATCH",
+        body: { isOpen: true },
+      });
+      setNotice("Waiting room open. Students can register now; Start round begins the clock.");
+      void load();
+    } catch (e) {
+      setError(errText(e));
+    }
+  }
+
   async function closeEntries() {
     try {
       await api(`/api/admin/organizations/${organizationId}`, {
@@ -187,8 +209,12 @@ export function RunDashboard({
         live={live}
         ended={roundEnded(s, now)}
         leftMs={closesInMs(s, now)}
+        timeLimitSeconds={data.timeLimitSeconds ?? null}
+        showStart={canStartRound(s, data.timeLimitSeconds ?? null, now)}
+        showOpenDoors={canOpenWaitingRoom(s, data.timeLimitSeconds ?? null, now)}
         canWrite={canWrite}
         onStart={() => void startRound()}
+        onOpenDoors={() => void openDoors()}
         onClose={() => void closeEntries()}
         shareUrl={
           typeof window === "undefined" ? `/s/${s.slug}` : `${window.location.origin}/s/${s.slug}`

@@ -50,7 +50,6 @@ export default async function OrganizationPage({ params }: Props) {
         timeLimitSeconds={counts.time_limit_seconds ?? null}
         requireEmail={organization.require_email}
         collectClass={organization.collect_class}
-        showLeaderboard={organization.show_leaderboard}
         prizeNote={organization.prize_note}
       />
     </Stage>

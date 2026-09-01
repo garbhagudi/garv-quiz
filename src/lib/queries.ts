@@ -54,44 +54,6 @@ export async function getOrganizationByIdOrSlug(
   return rows[0] ?? null;
 }
 
-/**
- * One row per student — their best attempt — ranked. Retakes never let somebody
- * appear twice on the board; the admin table still shows every attempt.
- */
-export async function bestAttemptsRanked(organizationId: number) {
-  return (await sql`
-    WITH best AS (
-      SELECT DISTINCT ON (a.participant_id)
-             a.id, a.public_id, a.participant_id, a.score, a.max_score,
-             a.correct_count, a.question_count, a.answer_ms, a.elapsed_ms, a.submitted_at,
-             p.name, p.phone, p.email, p.class_or_year
-        FROM attempts a
-        JOIN participants p ON p.id = a.participant_id
-       WHERE a.organization_id = ${organizationId} AND a.status = 'completed'
-         AND a.is_deleted = false AND p.is_deleted = false
-       ORDER BY a.participant_id, a.score DESC, a.answer_ms ASC, a.submitted_at ASC
-    )
-    SELECT *, ROW_NUMBER() OVER (ORDER BY score DESC, answer_ms ASC, submitted_at ASC)::int AS rank
-      FROM best
-     ORDER BY rank ASC`) as unknown as {
-    id: number;
-    public_id: string;
-    participant_id: number;
-    score: number;
-    max_score: number;
-    correct_count: number;
-    question_count: number;
-    answer_ms: number;
-    elapsed_ms: number;
-    submitted_at: string;
-    name: string;
-    phone: string;
-    email: string;
-    class_or_year: string;
-    rank: number;
-  }[];
-}
-
 /** Every completed attempt, newest-ranked first, with a per-student attempt number. */
 export async function allAttemptsRanked(organizationId: number) {
   return (await sql`

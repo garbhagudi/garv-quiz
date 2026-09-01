@@ -197,13 +197,16 @@ export const organizationSchema = z.object({
   eventDate: z.string().optional().nullable().default(null),
   notes: z.string().max(2000).optional().default(""),
   questionSetId: z.coerce.number().int().positive().nullable().optional().default(null),
-  isOpen: z.boolean().optional().default(true),
+  // A new event starts closed. Setting one up is a quiet job done the day
+  // before; going live is a deliberate press of "Start round" in front of the
+  // room. Opening by default meant a half-configured event was already taking
+  // entries, and for a timed set it would take them with no deadline at all.
+  isOpen: z.boolean().optional().default(false),
   questionCount: z.coerce.number().int().positive().nullable().optional().default(null),
   shuffleQuestions: z.boolean().optional().default(false),
   shuffleOptions: z.boolean().optional().default(true),
   allowRetake: z.boolean().optional().default(false),
   showScore: z.boolean().optional().default(true),
-  showLeaderboard: z.boolean().optional().default(true),
   requireEmail: z.boolean().optional().default(true),
   collectClass: z.boolean().optional().default(false),
   prizeNote: z.string().max(400).optional().default(""),
@@ -233,7 +236,6 @@ export const organizationPatchSchema = z.object({
   shuffleOptions: z.boolean().optional(),
   allowRetake: z.boolean().optional(),
   showScore: z.boolean().optional(),
-  showLeaderboard: z.boolean().optional(),
   requireEmail: z.boolean().optional(),
   collectClass: z.boolean().optional(),
   prizeNote: z.string().max(400).optional(),

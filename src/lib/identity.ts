@@ -8,9 +8,9 @@
  * quiz, or two students sharing an inbox, which the address rule exists to
  * prevent. Nothing in the request distinguishes them except the name.
  *
- * So the name is the tie-breaker, using the same forgiving comparison that lets
- * a student back into their own dashboard in /api/me — this is not a new trust
- * assumption, it is the one already made there.
+ * So the name is the tie-breaker: forgiving enough that a first name is enough
+ * to be recognised, strict enough that somebody else's address does not let a
+ * stranger through.
  */
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");

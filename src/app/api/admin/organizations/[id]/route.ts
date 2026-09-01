@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { LEAD_IN_MS } from "@/lib/eventWindow";
 import { ok, fail, route, readJson, requireAdmin, requireWriter, audit } from "@/lib/api";
 import { organizationPatchSchema } from "@/lib/validate";
 import { deleteOrganization, deleteOrganizationEntries } from "@/lib/softDelete";
@@ -30,6 +31,14 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
   const organization = await getOrganizationById(id, true);
   if (!organization) return fail("Event not found.", 404);
 
+  // The run screen tells an untimed event apart from a timed one that has not
+  // been started with this: `closes_at` is null for both, but only the second
+  // still has a round to start.
+  const [limit] = (await sql`
+    SELECT qs.time_limit_seconds FROM question_sets qs
+     WHERE qs.id = ${organization.question_set_id} AND qs.is_deleted = false
+     LIMIT 1`) as unknown as { time_limit_seconds: number | null }[];
+
   const [summary, results, analysis, notFinished] = await Promise.all([
     organizationSummary(id),
     allAttemptsRanked(id),
@@ -50,6 +59,7 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
 
   return ok({
     organization,
+    timeLimitSeconds: limit?.time_limit_seconds ?? null,
     summary,
     results: results.map((r) => ({
       ...r,
@@ -95,8 +105,14 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
        WHERE id = ${existing.question_set_id} AND is_deleted = false
        LIMIT 1`) as unknown as { time_limit_seconds: number | null }[];
     const seconds = limit?.time_limit_seconds ?? null;
+    // The lead-in is added to the deadline rather than taken out of it, so the
+    // five seconds of "starting now" on every phone cost nobody any answering
+    // time. Students derive the moment questions appear by subtracting the
+    // limit back off, which is why nothing else needs storing.
     const closesAt =
-      seconds === null ? null : new Date(Date.now() + seconds * 1000).toISOString();
+      seconds === null
+        ? null
+        : new Date(Date.now() + LEAD_IN_MS + seconds * 1000).toISOString();
 
     const [row] = (await sql`
       UPDATE organizations
@@ -131,7 +147,6 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
     shuffleOptions: pick(v.shuffleOptions, existing.shuffle_options),
     allowRetake: pick(v.allowRetake, existing.allow_retake),
     showScore: pick(v.showScore, existing.show_score),
-    showLeaderboard: pick(v.showLeaderboard, existing.show_leaderboard),
     requireEmail: pick(v.requireEmail, existing.require_email),
     collectClass: pick(v.collectClass, existing.collect_class),
     prizeNote: pick(v.prizeNote, existing.prize_note),
@@ -152,7 +167,7 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
       question_count = ${next.questionCount},
       shuffle_questions = ${next.shuffleQuestions}, shuffle_options = ${next.shuffleOptions},
       allow_retake = ${next.allowRetake}, show_score = ${next.showScore},
-      show_leaderboard = ${next.showLeaderboard}, require_email = ${next.requireEmail},
+      require_email = ${next.requireEmail},
       collect_class = ${next.collectClass}, prize_note = ${next.prizeNote}
     WHERE id = ${id}
     RETURNING *`) as unknown as Record<string, unknown>[];

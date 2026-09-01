@@ -23,7 +23,6 @@ export type OrganizationDraft = {
   shuffleOptions: boolean;
   allowRetake: boolean;
   showScore: boolean;
-  showLeaderboard: boolean;
   requireEmail: boolean;
   collectClass: boolean;
   prizeNote: string;
@@ -48,13 +47,14 @@ export const blankDraft = (defaultSetId: number | null): OrganizationDraft => ({
   eventDate: "",
   notes: "",
   questionSetId: defaultSetId,
-  isOpen: true,
+  // Closed until somebody presses Start round. The form sends this field on
+  // every create, so it — not the schema default — is what a new event gets.
+  isOpen: false,
   questionCount: null,
   shuffleQuestions: false,
   shuffleOptions: true,
   allowRetake: false,
   showScore: true,
-  showLeaderboard: true,
   requireEmail: true,
   collectClass: false,
   prizeNote: "Winners get exciting gifts from the GarbhaGudi team.",
@@ -75,7 +75,6 @@ export const draftFromOrganization = (s: Organization): OrganizationDraft => ({
   shuffleOptions: s.shuffle_options,
   allowRetake: s.allow_retake,
   showScore: s.show_score,
-  showLeaderboard: s.show_leaderboard,
   requireEmail: s.require_email,
   collectClass: s.collect_class,
   prizeNote: s.prize_note,
@@ -278,18 +277,11 @@ export function OrganizationForm({
           onChange={(v) => set("allowRetake", v)}
         />
         <Toggle
-          label="Show students their score"
-          hint="Off keeps scores secret until you announce them."
+          label="Show students their score and time"
+          hint="Off shows only a thank-you, keeping both secret until you announce the winners."
           checked={draft.showScore}
           disabled={readOnly}
           onChange={(v) => set("showScore", v)}
-        />
-        <Toggle
-          label="Show the public leaderboard"
-          hint="Names and points only — never times or contact details."
-          checked={draft.showLeaderboard}
-          disabled={readOnly}
-          onChange={(v) => set("showLeaderboard", v)}
         />
         <Toggle
           label="Require an email address"

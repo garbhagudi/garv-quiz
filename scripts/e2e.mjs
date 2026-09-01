@@ -161,6 +161,20 @@ async function servedFor(db, attemptId) {
  * student. Handles both kinds of question: a single-answer one gets one tick, a
  * "select all that apply" one gets its whole key.
  */
+/**
+ * Skip the five-second lead-in a started round now carries.
+ *
+ * Start sets the deadline to `now + lead-in + limit`; winding it back by the
+ * lead-in leaves a round that began this instant with its full limit intact.
+ * The alternative is sleeping five seconds in every test that plays a round.
+ */
+async function skipLeadIn(db, slug) {
+  await db.query(
+    `UPDATE organizations SET closes_at = closes_at - interval '5 seconds' WHERE slug = $1`,
+    [slug],
+  );
+}
+
 async function answersFor(db, attemptId, correctCount = 99) {
   const served = await servedFor(db, attemptId);
   return served.map((q) => {
@@ -361,11 +375,6 @@ try {
     return "no `ci` / `correct` anywhere in the payload";
   });
 
-  await test("signing in sets an httpOnly participant cookie", async () => {
-    assert(asha.jar.has("gg_participant"), "no participant cookie was set");
-    return "gg_participant present";
-  });
-
   await test("a second student cannot register with an address already in use", async () => {
     const c = client("email-clash");
     const { status, data } = await c.call("/api/quiz/start", {
@@ -465,8 +474,53 @@ try {
     eq(data.field, "phone", "the address rule fired against the student's own row");
   });
 
-  /* ------------------- a field of students, for ranking ---------------- */
-  section("Student — leaderboard and ranking");
+  await test("the student-facing leaderboard and dashboard are gone", async () => {
+    for (const path of [
+      "/api/quiz/leaderboard?code=demo",
+      "/api/me",
+      "/s/demo/dashboard",
+    ]) {
+      const { status } = await asha.call(path, { redirect: "manual", raw: true });
+      eq(status, 404, `${path} status`);
+    }
+    return "3 routes removed";
+  });
+
+  await test("a finished student is told their score and their time, and no rank", async () => {
+    // Replay one student end to end and read exactly what the finish screen gets.
+    const c = client("finish-screen");
+    const started = await c.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "demo", name: "Finish Screen", phone: "9800000009", email: "fin@x.com" },
+    });
+    eq(started.status, 200, "registered");
+    const answers = await answersFor(emu.db, started.data.attemptId, 5);
+    const { status, data } = await c.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: started.data.attemptId, answers, elapsedMs: 9_000 },
+    });
+    eq(status, 200, "status");
+
+    assert(typeof data.score === "number", "no score to show");
+    assert(typeof data.maxScore === "number", "no total to show");
+    assert(typeof data.answerMs === "number" && data.answerMs > 0, "no time to show");
+
+    // Nothing that would tell them where they placed, or anything about anybody
+    // else: winners are the host's to announce.
+    const text = JSON.stringify(data);
+    for (const leak of ["rank", "leaderboard", "showLeaderboard", "top", "position"]) {
+      assert(!text.includes(leak), `the finish payload exposed "${leak}"`);
+    }
+    assert(!c.jar.has("gg_participant"), "playing must no longer leave an identity cookie");
+
+    // This student exists only to read the finish screen; the admin views below
+    // count what played, so take them back out for real rather than soft-delete.
+    await emu.db.query(`DELETE FROM participants WHERE phone = '9800000009'`);
+    return `score ${data.score}/${data.maxScore}, time ${data.answerMs}ms, no rank`;
+  });
+
+  /* ------------- a field of students, for the admin views ---------------- */
+  section("Student — a field of players");
 
   const field = [
     { name: "Bhavya N", phone: "9800000002", correct: 15, ms: 400 }, // ties Asha, faster
@@ -493,83 +547,6 @@ try {
       s.score = r.data.score;
     }
     return field.map((s) => `${s.name.split(" ")[0]} ${s.score}`).join(", ");
-  });
-
-  await test("ties on points are broken by the faster answering time", async () => {
-    const { status, data } = await asha.call(
-      `/api/quiz/leaderboard?code=demo&attempt=${ashaAttempt}`,
-    );
-    eq(status, 200, "status");
-    // Bhavya answered in 400ms/question vs Asha's ~1000ms, on the same 16 points.
-    eq(data.top[0].name, "Bhavya N", "first place");
-    eq(data.top[1].name, "Asha Rao", "second place");
-    eq(data.you.rank, 2, "Asha's own rank");
-    eq(data.you.score, 16, "Asha's own score");
-    return data.top.map((r) => `${r.rank}. ${r.name} (${r.score})`).join("  ");
-  });
-
-  await test("the public leaderboard leaks no contact details or times", async () => {
-    const { data } = await asha.call(`/api/quiz/leaderboard?code=demo&attempt=${ashaAttempt}`);
-    const text = JSON.stringify(data);
-    for (const secret of ["9800000001", "9800000002", "asha@x.com", "answer_ms", "answerMs", "phone", "email"]) {
-      assert(!text.includes(secret), `the leaderboard exposed "${secret}"`);
-    }
-    return "names and points only";
-  });
-
-  section("Student — dashboard");
-
-  await test("the cookie from playing opens the dashboard with no re-login", async () => {
-    const { status, data } = await asha.call("/api/me");
-    eq(status, 200, "status");
-    eq(data.student.name, "Asha Rao", "name");
-    eq(data.rank.position, 2, "rank");
-    eq(data.attempts[0].score, 16, "score");
-  });
-
-  await test("the answer review stays locked while the event is open", async () => {
-    const { data } = await asha.call("/api/me");
-    eq(data.reviewUnlocked, false, "reviewUnlocked");
-    eq(data.review.length, 0, "review rows");
-    const text = JSON.stringify(data.review);
-    assert(!text.includes("right-0"), "a correct answer leaked while the quiz was still open");
-  });
-
-  await test("a returning student signs in with name and mobile", async () => {
-    const fresh = client("asha-fresh");
-    const { status, data } = await fresh.call("/api/me", {
-      method: "POST",
-      body: { slug: "demo", name: "Asha", phone: "9800000001" }, // first name is enough
-    });
-    eq(status, 200, "status");
-    eq(data.student.name, "Asha Rao", "name");
-    return "first name accepted";
-  });
-
-  await test("a mismatched name is refused, with no hint about which half was wrong", async () => {
-    const fresh = client("wrong-name");
-    const a = await fresh.call("/api/me", {
-      method: "POST",
-      body: { slug: "demo", name: "Someone Else", phone: "9800000001" },
-    });
-    const b = await fresh.call("/api/me", {
-      method: "POST",
-      body: { slug: "demo", name: "Asha Rao", phone: "9777777777" },
-    });
-    eq(a.status, 404, "wrong-name status");
-    eq(b.status, 404, "unknown-number status");
-    eq(a.data.error, b.data.error, "the two messages differ, which leaks whether a number played");
-    return "identical message for both";
-  });
-
-  await test("signing out clears the participant cookie", async () => {
-    const c = client("signout");
-    await c.call("/api/me", { method: "POST", body: { slug: "demo", name: "Asha", phone: "9800000001" } });
-    assert(c.jar.has("gg_participant"), "no cookie to clear");
-    await c.call("/api/me", { method: "DELETE" });
-    assert(!c.jar.has("gg_participant"), "the cookie survived sign-out");
-    const after = await c.call("/api/me");
-    eq(after.status, 401, "status after sign-out");
   });
 
   /* ========================= 2. the admin panel ======================== */
@@ -774,6 +751,10 @@ try {
         shuffleQuestions: true,
         collectClass: true,
         requireEmail: false,
+        // Events are created closed and go live on "Start round". The tests
+        // below are about registering and marking, not the round lifecycle, so
+        // they ask for a live event up front rather than pressing Start first.
+        isOpen: true,
       },
     });
     eq(status, 201, "status");
@@ -837,11 +818,11 @@ try {
     for (const key of [
       "name", "slug", "question_set_id", "question_count", "is_open",
       "shuffle_questions", "shuffle_options", "allow_retake", "show_score",
-      "show_leaderboard", "require_email", "collect_class", "prize_note",
+      "require_email", "collect_class", "prize_note",
     ]) {
       eq(after.organization[key], before.organization[key], `untouched field "${key}"`);
     }
-    return "13 other settings preserved";
+    return "12 other settings preserved";
   });
 
   await test("closing entries stops new registrations", async () => {
@@ -858,65 +839,6 @@ try {
     });
     eq(late.status, 403, "late registration status");
     assert(late.data.error.includes("closed"), `message was: ${late.data.error}`);
-  });
-
-  await test("closing the event unlocks the students' answer review", async () => {
-    // Close "demo" too, then check Asha can finally see the key.
-    await admin.call(`/api/admin/organizations/${organizationId}`, {
-      method: "PATCH",
-      body: { isOpen: false },
-    });
-    const { data } = await asha.call("/api/me");
-    eq(data.reviewUnlocked, true, "reviewUnlocked");
-    eq(data.review.length, 15, "review rows");
-    assert(data.review[0].correct.startsWith("right-"), "the correct answer is missing");
-    return "15 questions reviewable once closed";
-  });
-
-  await test("the answer review says what each question was worth", async () => {
-    const { data } = await asha.call("/api/me");
-    eq(data.reviewUnlocked, true, "reviewUnlocked");
-    eq(data.review.length, 15, "review rows");
-
-    // Every row carries both numbers: earned, and what it was worth.
-    const missing = data.review.filter(
-      (r) => typeof r.points !== "number" || typeof r.maxPoints !== "number",
-    );
-    eq(missing.length, 0, "rows missing the marks");
-
-    // The seed makes the last question worth 2 and the rest 1, and Asha
-    // answered every one correctly.
-    const worth = data.review.map((r) => r.maxPoints).sort((a, b) => a - b);
-    eq(worth[worth.length - 1], 2, "the two-mark question");
-    eq(
-      data.review.every((r) => (r.isCorrect ? r.points === r.maxPoints : r.points === 0)),
-      true,
-      "marks earned line up with whether the answer was right",
-    );
-
-    // And they add up to the score the student was shown.
-    const summed = data.review.reduce((t, r) => t + r.points, 0);
-    eq(summed, 16, "the per-question marks sum to the score");
-    return `15 questions, ${summed} of ${data.review.reduce((t, r) => t + r.maxPoints, 0)} marks`;
-  });
-
-  await test("a wrong answer still shows what the question was worth", async () => {
-    // Divya got most of them wrong, so her sheet is the one that proves a
-    // zero-scoring row still knows its own value. Signing in returns it.
-    const divya = client("divya-review");
-    const { status, data } = await divya.call("/api/me", {
-      method: "POST",
-      body: { slug: "demo", name: "Divya S", phone: "9800000004" },
-    });
-    eq(status, 200, "sign-in status");
-    const wrong = data.review.filter((r) => !r.isCorrect);
-    assert(wrong.length > 0, "expected some wrong answers to check");
-    eq(
-      wrong.every((r) => r.points === 0 && r.maxPoints >= 1),
-      true,
-      "a wrong answer scored 0 but still reports its value",
-    );
-    return `${wrong.length} wrong answers, all showing their marks`;
   });
 
   section("Admin — managing questions");
@@ -1091,7 +1013,7 @@ try {
 
     const org = await admin.call("/api/admin/organizations", {
       method: "POST",
-      body: { name: "Timed College", slug: "timed-2026", questionSetId: timedSetId, requireEmail: false },
+      body: { name: "Timed College", slug: "timed-2026", questionSetId: timedSetId, requireEmail: false, isOpen: true },
     });
     eq(org.status, 201, "event status");
     timedOrgId = org.data.organization.id;
@@ -1118,7 +1040,81 @@ try {
     const { data } = await admin.call("/api/admin/sets");
     const set = data.sets.find((s) => Number(s.id) === Number(timedSetId));
     eq(set.time_limit_seconds, 720, "12 minutes stored as seconds");
+
+    // The set is timed now, so the event needs its round started before it will
+    // let anybody in. Nothing below is about the door, so open it here.
+    const started = await admin.call(`/api/admin/organizations/${timedOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    await skipLeadIn(emu.db, "timed-2026");
+    assert(started.data.organization.closes_at, "the round did not start");
     return "12 min -> 720 s";
+  });
+
+  await test("a timed event admits nobody until its round is started", async () => {
+    // The event's switch is on, but no round has been given a deadline. Letting
+    // students in here would hand each of them a full clock before the host had
+    // said go — the whole point of a timed round.
+    const made = await admin.call("/api/admin/organizations", {
+      method: "POST",
+      body: {
+        name: "Early College",
+        slug: "early-2026",
+        questionSetId: timedSetId,
+        requireEmail: false,
+        isOpen: true,
+      },
+    });
+    eq(made.status, 201, "created");
+    eq(made.data.organization.is_open, true, "open by hand");
+    eq(made.data.organization.closes_at, null, "but with no round");
+
+    const pub = await client("early-pub").call("/api/public/organization?code=early-2026");
+    eq(pub.data.organization.isOpen, true, "the waiting room is reachable");
+    eq(pub.data.organization.notStarted, true, "but the round has not started");
+    eq(pub.data.organization.beginsInMs, null, "and there is nothing to count down to");
+
+    // Registering is exactly what a student does in the waiting room, so this
+    // succeeds — but it opens no attempt and hands out no questions.
+    const { status, data } = await client("early").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "early-2026", name: "Far Too Keen", phone: "9872000009" },
+    });
+    eq(status, 200, "status");
+    eq(data.waiting, true, "waiting");
+    eq(data.questions, undefined, "no question may leave the server before the round");
+    eq(data.attemptId, undefined, "and no attempt may be opened");
+    eq(data.beginsInMs, null, "nothing to count down to yet");
+    eq(data.summary.total, 3, "but the shape of the quiz is safe to send");
+
+    const early = await emu.db.query(
+      `SELECT count(*)::int AS n FROM attempts a
+         JOIN organizations o ON o.id = a.organization_id
+        WHERE o.slug = 'early-2026'`,
+    );
+    eq(early.rows[0].n, 0, "the waiting room must not open attempts");
+
+    // Start is what opens it, and then the same student is welcome.
+    await admin.call(`/api/admin/organizations/${made.data.organization.id}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    await skipLeadIn(emu.db, "early-2026");
+    const after = await client("early2").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "early-2026", name: "Far Too Keen", phone: "9872000009" },
+    });
+    eq(after.status, 200, "the round started, so the student is in");
+    eq(after.data.timeLimitSeconds, 720, "and gets the set's limit");
+    eq(after.data.questions.length, 3, "and now has questions");
+    assert(after.data.attemptId, "and an attempt");
+
+    await admin.call(
+      `/api/admin/organizations/${made.data.organization.id}?mode=all&confirm=early-2026`,
+      { method: "DELETE" },
+    );
+    return "refused before Start, admitted after";
   });
 
   await test("the limit reaches the student with their questions", async () => {
@@ -1215,7 +1211,7 @@ try {
   await test("an event to re-register against", async () => {
     const org = await admin.call("/api/admin/organizations", {
       method: "POST",
-      body: { name: "Again College", slug: "again-2026", questionSetId: setId, questionCount: 3 },
+      body: { name: "Again College", slug: "again-2026", questionSetId: setId, questionCount: 3, isOpen: true },
     });
     eq(org.status, 201, "status");
     againOrgId = org.data.organization.id;
@@ -1548,6 +1544,31 @@ try {
     return `set #${roundSetId} (1 min), event "round-2026", closed`;
   });
 
+  await test("a new event is created closed, not live", async () => {
+    // Setting an event up is a quiet job done beforehand; going live is a
+    // deliberate press of Start in front of the room. A half-configured event
+    // must not already be taking entries.
+    const made = await admin.call("/api/admin/organizations", {
+      method: "POST",
+      body: { name: "Default College", slug: "default-2026", questionSetId: roundSetId },
+    });
+    eq(made.status, 201, "status");
+    eq(made.data.organization.is_open, false, "a brand new event must not be open");
+    eq(made.data.organization.closes_at, null, "a brand new event has no deadline");
+
+    const { status } = await client("default-early").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "default-2026", name: "Far Too Early", phone: "9865000001" },
+    });
+    eq(status, 403, "a student reached an event nobody had started");
+
+    await admin.call(
+      `/api/admin/organizations/${made.data.organization.id}?mode=all&confirm=default-2026`,
+      { method: "DELETE" },
+    );
+    return "closed on arrival, and refusing entries";
+  });
+
   await test("while it is closed, nobody can register", async () => {
     const { status, data } = await client("round-early").call("/api/quiz/start", {
       method: "POST",
@@ -1566,14 +1587,41 @@ try {
     eq(data.organization.is_open, true, "is_open");
     assert(data.organization.closes_at, "no deadline was set");
 
+    // The lead-in is bought on top of the limit, not taken out of it: a minute
+    // of answering still lasts a minute, and the deadline is that much later.
     const left = new Date(data.organization.closes_at).getTime() - Date.now();
-    assert(left > 50_000 && left <= 60_000, `deadline is ${Math.round(left / 1000)}s away, expected ~60`);
+    assert(
+      left > 60_000 && left <= 65_000,
+      `deadline is ${Math.round(left / 1000)}s away, expected ~65 (60s round + 5s lead-in)`,
+    );
 
-    // And the public page agrees.
+    // The phone is told how long until the questions appear, as a duration, so
+    // a room of phones lands together whatever their clocks say.
     const pub = await client("round-pub").call("/api/public/organization?code=round-2026");
     eq(pub.data.organization.isOpen, true, "the student-facing page says open");
+    eq(pub.data.organization.notStarted, false, "the round is on");
+    assert(
+      pub.data.organization.beginsInMs > 0 && pub.data.organization.beginsInMs <= 5_000,
+      `lead-in reached the phone as ${pub.data.organization.beginsInMs}ms`,
+    );
     assert(pub.data.organization.closesInMs > 0, "the countdown did not reach the phone");
-    return `open, closes in ${Math.round(left / 1000)}s`;
+
+    // During the lead-in there is still nothing to answer.
+    const early = await client("round-leadin").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Too Eager", phone: "9863000011" },
+    });
+    eq(early.status, 200, "registering during the lead-in is fine");
+    eq(early.data.waiting, true, "but the questions wait for the countdown");
+
+    await skipLeadIn(emu.db, "round-2026");
+    const now = await client("round-leadin2").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Too Eager", phone: "9863000011" },
+    });
+    eq(now.status, 200, "once the lead-in is over the same student is let in");
+    eq(now.data.questions.length, 2, "and gets the questions");
+    return `open, ${Math.round(left / 1000)}s deadline including the lead-in`;
   });
 
   await test("students can register while the round runs", async () => {
@@ -1631,11 +1679,141 @@ try {
     return "submitted after the round ended, and marked";
   });
 
+  await test("a timed event opened by hand still has a round to start", async () => {
+    // The state that a UI regression hid Start on: open, timed, but with no
+    // deadline because nobody pressed Start. `closes_at` is null here exactly
+    // as it is on an untimed event, so the run screen is told the set's limit
+    // and must keep offering Start until a clock is actually ticking.
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { isOpen: false },
+    });
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { isOpen: true },
+    });
+
+    const live = await admin.call(`/api/admin/organizations/${roundOrgId}/live`);
+    eq(live.status, 200, "status");
+    eq(live.data.organization.is_open, true, "open");
+    eq(live.data.organization.closes_at, null, "opened by hand, so no deadline");
+    eq(live.data.timeLimitSeconds, 60, "the run screen must be told the set is timed");
+
+    // And the full detail route, which the results page reads, agrees.
+    const detail = await admin.call(`/api/admin/organizations/${roundOrgId}`);
+    eq(detail.data.timeLimitSeconds, 60, "the detail route must report it too");
+
+    // Start still works from here, and is what puts a clock on it.
+    const { data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    await skipLeadIn(emu.db, "round-2026");
+    assert(data.organization.closes_at, "Start did not give the round a deadline");
+    return "open with no clock, and Start still available";
+  });
+
+  await test("an untimed set reports no limit to the run screen", async () => {
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: null },
+    });
+    const live = await admin.call(`/api/admin/organizations/${roundOrgId}/live`);
+    eq(live.data.timeLimitSeconds, null, "an untimed set must report null");
+
+    // Put the minute back for the tests below.
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: 1 },
+    });
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    await skipLeadIn(emu.db, "round-2026");
+    return "null, so the screen offers open/close rather than a round";
+  });
+
+  await test("a submission after the student's own time is up is refused", async () => {
+    await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    await skipLeadIn(emu.db, "round-2026");
+
+    const c = client("round-overrun");
+    const started = await c.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Ran Over", phone: "9863000009" },
+    });
+    eq(started.status, 200, "registered");
+    const id = started.data.attemptId;
+    const answers = await answersFor(emu.db, id);
+
+    // Age the attempt past its own minute rather than waiting one out. The
+    // check reads `started_at`, so an old one is exactly what overrunning is.
+    await emu.db.query(
+      `UPDATE attempts SET started_at = now() - interval '5 minutes' WHERE public_id = $1`,
+      [id],
+    );
+
+    const { status, data } = await c.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: id, answers, elapsedMs: 20_000 },
+    });
+    eq(status, 409, "status");
+    assert(data.error.toLowerCase().includes("time"), `message was: ${data.error}`);
+
+    // Nothing was scored, and the attempt is not left hanging in the host's
+    // "still answering" count for somebody who is never coming back.
+    const row = await emu.db.query(
+      `SELECT status, score FROM attempts WHERE public_id = $1`,
+      [id],
+    );
+    eq(row.rows[0].status, "abandoned", "attempt status");
+    eq(row.rows[0].score, 0, "an overrun attempt must score nothing");
+
+    const again = await c.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: id, answers, elapsedMs: 20_000 },
+    });
+    eq(again.status, 409, "a second try must not get in either");
+    return "refused, marked abandoned, and unscored";
+  });
+
+  await test("running a little late is still allowed through", async () => {
+    // The countdown starts in the browser a moment after `started_at` is
+    // stamped here, so an honest auto-submit at zero lands slightly late.
+    const c = client("round-grace");
+    const started = await c.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "Just Late", phone: "9863000010" },
+    });
+    eq(started.status, 200, "registered");
+    const id = started.data.attemptId;
+    const answers = await answersFor(emu.db, id);
+
+    // One minute and five seconds into a one-minute quiz: over, but within the
+    // allowance for a round trip.
+    await emu.db.query(
+      `UPDATE attempts SET started_at = now() - interval '65 seconds' WHERE public_id = $1`,
+      [id],
+    );
+
+    const { status } = await c.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: id, answers, elapsedMs: 60_000 },
+    });
+    eq(status, 200, "an honest late submit was thrown away");
+    return "5s over the limit, accepted";
+  });
+
   await test("Start again runs a fresh round", async () => {
     const { status, data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
       method: "PATCH",
       body: { startRound: true },
     });
+    await skipLeadIn(emu.db, "round-2026");
     eq(status, 200, "status");
     const left = new Date(data.organization.closes_at).getTime() - Date.now();
     assert(left > 50_000, `the new deadline is only ${Math.round(left / 1000)}s away`);
@@ -1665,7 +1843,7 @@ try {
     return "closed, deadline cleared";
   });
 
-  await test("reopening by hand means open until somebody says otherwise", async () => {
+  await test("reopening a timed event by hand does not restart its round", async () => {
     const { data } = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
       method: "PATCH",
       body: { isOpen: true },
@@ -1673,12 +1851,28 @@ try {
     eq(data.organization.is_open, true, "is_open");
     eq(data.organization.closes_at, null, "reopening by hand must not invent a deadline");
 
-    const { status } = await client("round-reopened").call("/api/quiz/start", {
+    // The switch is on, but this set is timed and no round is running: that is
+    // the waiting room. They register and wait rather than being turned away.
+    const { status, data: body } = await client("round-reopened").call("/api/quiz/start", {
       method: "POST",
       body: { slug: "round-2026", name: "After Reopen", phone: "9863000006" },
     });
     eq(status, 200, "status");
-    return "open with no deadline";
+    eq(body.waiting, true, "waiting");
+    eq(body.questions, undefined, "no questions before the round");
+
+    const started = await admin.call(`/api/admin/organizations/${roundOrgId}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    await skipLeadIn(emu.db, "round-2026");
+    assert(started.data.organization.closes_at, "Start did not give it a deadline");
+    const { status: joined } = await client("round-reopened2").call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "round-2026", name: "After Reopen", phone: "9863000006" },
+    });
+    eq(joined, 200, "the started round lets them in");
+    return "the switch alone is not a round";
   });
 
   await test("an ordinary edit leaves a running round alone", async () => {
@@ -1686,6 +1880,7 @@ try {
       method: "PATCH",
       body: { startRound: true },
     });
+    await skipLeadIn(emu.db, "round-2026");
     const before = await admin.call(`/api/admin/organizations/${roundOrgId}`);
     const deadline = before.data.organization.closes_at;
     assert(deadline, "expected a running round");
@@ -1709,6 +1904,7 @@ try {
       method: "PATCH",
       body: { startRound: true },
     });
+    await skipLeadIn(emu.db, "round-2026");
     eq(data.organization.is_open, true, "is_open");
     eq(data.organization.closes_at, null, "an untimed set has no deadline to give");
 
@@ -1720,11 +1916,76 @@ try {
     return "open, with nothing to run out";
   });
 
+  await test("a finished round can be reopened as a waiting room", async () => {
+    // A waiting room only exists on a timed set, and an earlier test left this
+    // one untimed. Put a minute back for the duration, and restore it after.
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: 1 },
+    });
+
+    // Its own event, so the carefully ordered tests above are left alone.
+    const made = await admin.call("/api/admin/organizations", {
+      method: "POST",
+      body: {
+        name: "Again And Again College",
+        slug: "again-round-2026",
+        questionSetId: roundSetId,
+        requireEmail: false,
+      },
+    });
+    eq(made.status, 201, "created");
+    const id = made.data.organization.id;
+
+    await admin.call(`/api/admin/organizations/${id}`, {
+      method: "PATCH",
+      body: { startRound: true },
+    });
+    // Run the round out, leaving the state the host actually finds afterwards:
+    // the switch still on, the deadline behind them.
+    await emu.db.query(
+      `UPDATE organizations SET closes_at = now() - interval '1 second' WHERE slug = 'again-round-2026'`,
+    );
+    const over = await admin.call(`/api/admin/organizations/${id}`);
+    eq(over.data.organization.is_open, true, "the switch is still on");
+    assert(over.data.organization.closes_at, "and the spent deadline is still there");
+
+    // Opening the waiting room from here must clear that spent deadline,
+    // otherwise the event would still read as over and admit nobody.
+    const opened = await admin.call(`/api/admin/organizations/${id}`, {
+      method: "PATCH",
+      body: { isOpen: true },
+    });
+    eq(opened.data.organization.is_open, true, "open");
+    eq(opened.data.organization.closes_at, null, "the spent deadline must be cleared");
+
+    // And it behaves as a waiting room: registering works, questions do not.
+    const c = client("again-lobby");
+    const { status, data } = await c.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "again-round-2026", name: "Second Timer", phone: "9866000001" },
+    });
+    eq(status, 200, "registering in the new waiting room");
+    eq(data.waiting, true, "waiting");
+    eq(data.questions, undefined, "no questions until the next round starts");
+
+    await admin.call(
+      `/api/admin/organizations/${id}?mode=all&confirm=again-round-2026`,
+      { method: "DELETE" },
+    );
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: null },
+    });
+    return "round over -> waiting room -> registering again";
+  });
+
   await test("the run dashboard reports the room while it plays", async () => {
     await admin.call(`/api/admin/organizations/${roundOrgId}`, {
       method: "PATCH",
       body: { startRound: true },
     });
+    await skipLeadIn(emu.db, "round-2026");
 
     // Two students in: one finishes, one is left mid-quiz.
     const done = client("run-done");
@@ -1847,7 +2108,11 @@ try {
     eq(status, 200, "status");
 
     // Exactly these keys — anything heavier has crept in if this fails.
-    eq(Object.keys(data).sort(), ["ok", "organization", "summary", "top"], "response shape");
+    eq(
+      Object.keys(data).sort(),
+      ["ok", "organization", "summary", "timeLimitSeconds", "top"],
+      "response shape",
+    );
     eq(
       Object.keys(data.summary).sort(),
       ["answering", "completed", "registered"],
@@ -1877,6 +2142,7 @@ try {
       method: "PATCH",
       body: { startRound: true },
     });
+    await skipLeadIn(emu.db, "round-2026");
     for (let i = 0; i < 8; i++) {
       const c = client(`live-load-${i}`);
       const start = await c.call("/api/quiz/start", {
@@ -2166,6 +2432,7 @@ try {
         questionSetId: multiSetId,
         shuffleOptions: true,
         requireEmail: false,
+        isOpen: true,
       },
     });
     eq(status, 201, "status");

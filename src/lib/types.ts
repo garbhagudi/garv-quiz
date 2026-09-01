@@ -69,7 +69,6 @@ export type Organization = {
   shuffle_options: boolean;
   allow_retake: boolean;
   show_score: boolean;
-  show_leaderboard: boolean;
   require_email: boolean;
   collect_class: boolean;
   prize_note: string;
@@ -84,7 +83,6 @@ export type OrganizationPublic = Pick<
   | "city"
   | "is_open"
   | "closes_at"
-  | "show_leaderboard"
   | "require_email"
   | "collect_class"
   | "prize_note"

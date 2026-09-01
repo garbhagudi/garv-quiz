@@ -84,7 +84,10 @@ CREATE TABLE IF NOT EXISTS organizations (
   shuffle_options   boolean     NOT NULL DEFAULT true,
   allow_retake      boolean     NOT NULL DEFAULT false,  -- one attempt per mobile unless true
   show_score        boolean     NOT NULL DEFAULT true,   -- show score on the finish screen
-  show_leaderboard  boolean     NOT NULL DEFAULT true,   -- let students see the public board
+  -- Legacy. Students are shown no leaderboard and no dashboard at all now, so
+  -- nothing reads or writes this. Kept so an existing database still matches
+  -- this file; drop it by hand if you ever want it gone.
+  show_leaderboard  boolean     NOT NULL DEFAULT true,
   require_email     boolean     NOT NULL DEFAULT true,
   collect_class     boolean     NOT NULL DEFAULT false,  -- ask for class / year / branch
   prize_note        text        NOT NULL DEFAULT 'Winners get exciting gifts from the GarbhaGudi team.',

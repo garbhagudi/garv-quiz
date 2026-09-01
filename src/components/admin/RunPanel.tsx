@@ -47,8 +47,12 @@ export function RunPanel({
   live,
   ended,
   leftMs,
+  timeLimitSeconds,
+  showStart,
+  showOpenDoors,
   canWrite,
   onStart,
+  onOpenDoors,
   onClose,
   shareUrl,
   headerLink,
@@ -58,8 +62,15 @@ export function RunPanel({
   live: boolean;
   ended: boolean;
   leftMs: number | null;
+  /** The set's whole-quiz limit; null means the set is untimed. */
+  timeLimitSeconds: number | null;
+  /** Both decided by canStartRound / canOpenWaitingRoom in @/lib/eventWindow. */
+  showStart: boolean;
+  showOpenDoors: boolean;
   canWrite: boolean;
   onStart: () => void;
+  /** Open the waiting room without starting the clock. Timed events only. */
+  onOpenDoors: () => void;
   onClose: () => void;
   shareUrl: string;
   /** Optional way out — the tab uses it to point at the standalone screen. */
@@ -67,12 +78,35 @@ export function RunPanel({
 }) {
   const waiting = summary.answering;
 
+  /* `leftMs === null` covers two different events: one whose set is untimed,
+     and a timed one nobody has started yet. Only the set's own limit tells them
+     apart, which is why `showStart` and `showOpenDoors` are worked out by the
+     caller from the shared predicates in @/lib/eventWindow rather than guessed
+     at from `leftMs` here. This screen exists twice, and every time that logic
+     was written inline in both copies the two drifted.
+
+     The waiting room - doors open, clock not running - is what is left when a
+     timed event is live with nothing counting down. Registering there is the
+     point: typing a name and a mobile number is not what a five-minute round is
+     for, so the host fills the room first and starts when it is full. */
+  const timed = timeLimitSeconds !== null;
+  const counting = live && leftMs !== null;
+  const lobby = timed && live && !counting;
+
   return (
     <div className="space-y-4">
       {/* ---- the clock, and the two buttons ---- */}
       <div className="panel text-center">
         <p className="font-display text-[11px] font-medium uppercase tracking-[0.16em] text-plum-soft">
-          {live ? (leftMs === null ? "Entries are open" : "Round in progress") : ended ? "Round over" : "Entries are closed"}
+          {live
+            ? counting
+              ? "Round in progress"
+              : lobby
+                ? "Waiting room open"
+                : "Entries are open"
+            : ended
+              ? "Round over"
+              : "Entries are closed"}
         </p>
 
         <div
@@ -83,28 +117,50 @@ export function RunPanel({
           ].join(" ")}
           role={leftMs !== null && live ? "timer" : undefined}
         >
-          {live ? (leftMs === null ? "No time limit" : fmtLeft(leftMs)) : ended ? "0:00" : "—"}
+          {live
+            ? counting
+              ? fmtLeft(leftMs)
+              : lobby
+                ? "Ready"
+                : "No time limit"
+            : ended
+              ? "0:00"
+              : "—"}
         </div>
 
         {live && leftMs === null ? (
           <p className="mt-1.5 text-[12.5px] text-muted">
-            This question set has no time limit, so close the entries yourself when the room is done.
+            {lobby
+              ? `${summary.registered} registered and waiting. Start round counts them in, then gives everyone ${fmtLeft(timeLimitSeconds * 1000)} to answer.`
+              : "This question set has no time limit, so close the entries yourself when the room is done."}
           </p>
         ) : null}
 
         {canWrite ? (
           <div className="mt-4 flex flex-wrap justify-center gap-2.5">
-            {live && leftMs !== null ? null : (
+            {showOpenDoors ? (
+              <button className="btn-ghost btn-sm" onClick={onOpenDoors}>
+                Open waiting room
+              </button>
+            ) : null}
+            {showStart ? (
               <button className="btn-primary btn-sm" onClick={onStart}>
                 {ended ? "Start another round" : "Start round"}
               </button>
-            )}
+            ) : null}
             {live ? (
               <button className="btn-ghost btn-sm" onClick={onClose}>
                 Close entries now
               </button>
             ) : null}
           </div>
+        ) : null}
+
+        {showOpenDoors ? (
+          <p className="mt-2.5 text-[12.5px] text-muted">
+            Open the waiting room first to let the room register while you talk — then Start round
+            is just the clock.
+          </p>
         ) : null}
 
         <p className="mt-3.5 text-[12.5px] text-muted">

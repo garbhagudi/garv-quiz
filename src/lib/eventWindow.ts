@@ -42,6 +42,105 @@ export function acceptingEntries(o: EventWindow, now = Date.now()): boolean {
 }
 
 /**
+ * True for a timed event whose round nobody has started: the switch is on, but
+ * there is no deadline, because only Start gives one.
+ *
+ * `closes_at` is null here exactly as it is on an untimed event, so the set's
+ * own limit is the only thing that separates the two — which is why this takes
+ * it as an argument rather than reading the event alone.
+ */
+export function roundNotStarted(o: EventWindow, timeLimitSeconds: number | null): boolean {
+  return timeLimitSeconds !== null && o.is_open && !o.closes_at;
+}
+
+/**
+ * The pause between the host pressing Start and the first question appearing,
+ * so a room of phones counts down together instead of jumping.
+ *
+ * Paid for by the round rather than taken from it: Start sets the deadline this
+ * much further out, so a five-minute quiz is still five minutes of answering.
+ */
+export const LEAD_IN_MS = 5_000;
+
+/**
+ * Milliseconds until the questions appear — the lead-in, counted down.
+ *
+ * Derived from the deadline rather than stored, because Start sets the deadline
+ * to `now + LEAD_IN_MS + limit`: subtracting the limit gives the instant the
+ * answering actually begins. Null when there is nothing to wait for.
+ *
+ * Returned to phones as a duration, never as a timestamp, so a phone with a
+ * wrong clock still lands with the rest of the room.
+ */
+export function beginsInMs(
+  o: EventWindow,
+  timeLimitSeconds: number | null,
+  now = Date.now(),
+): number | null {
+  if (timeLimitSeconds === null || !o.closes_at) return null;
+  const at = new Date(o.closes_at).getTime();
+  if (!Number.isFinite(at)) return null;
+  return Math.max(0, at - timeLimitSeconds * 1000 - now);
+}
+
+/**
+ * True once the questions may be served: the event is taking entries, its round
+ * has been started, and the lead-in has run out.
+ *
+ * Registering is deliberately allowed before this — that is what the waiting
+ * room is — so the door and the questions are two different rules.
+ */
+export function questionsReady(
+  o: EventWindow,
+  timeLimitSeconds: number | null,
+  now = Date.now(),
+): boolean {
+  if (!acceptingEntries(o, now)) return false;
+  if (roundNotStarted(o, timeLimitSeconds)) return false;
+  return (beginsInMs(o, timeLimitSeconds, now) ?? 0) <= 0;
+}
+
+/* ---------------------------------------------------------------------------
+   What the host may do next.
+
+   These two decide the buttons on the run screen. They live here, next to the
+   rules they are made of, because the run screen exists twice - the tab inside
+   an event and the standalone dashboard - and every time this logic was written
+   inline in both, the two drifted and a button went missing.
+--------------------------------------------------------------------------- */
+
+/**
+ * May the host start a round?
+ *
+ * Timed: yes until a clock is actually ticking, so a closed event, a waiting
+ * room and a finished round all still offer it. Untimed: there is no clock to
+ * start, so Start simply means open, and it goes once the event is open.
+ */
+export function canStartRound(
+  o: EventWindow,
+  timeLimitSeconds: number | null,
+  now = Date.now(),
+): boolean {
+  const counting = acceptingEntries(o, now) && closesInMs(o, now) !== null;
+  return timeLimitSeconds !== null ? !counting : !acceptingEntries(o, now);
+}
+
+/**
+ * May the host open the waiting room - doors open, clock not running?
+ *
+ * Only timed events have one, and only while the doors are not already open.
+ * A finished round counts: the second round of the day wants the room filled
+ * and waiting just as much as the first did.
+ */
+export function canOpenWaitingRoom(
+  o: EventWindow,
+  timeLimitSeconds: number | null,
+  now = Date.now(),
+): boolean {
+  return timeLimitSeconds !== null && !acceptingEntries(o, now);
+}
+
+/**
  * True while a round is actually counting down — open, with a deadline still
  * ahead. Not the same as accepting entries: an event left open with no time
  * limit takes entries indefinitely without any round running.

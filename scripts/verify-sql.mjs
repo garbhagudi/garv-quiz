@@ -261,9 +261,12 @@ await step("complete the attempts", async () => {
   return "4 completed";
 });
 
-/* ---------------------------- ranking queries ---------------------------- */
+/* ---------------------------- ranking queries ----------------------------
+   Students are shown no ranking at all any more, but the admin live board still
+   picks one best attempt per student and orders by score then answer time, so
+   these keep covering that. */
 
-await step("bestAttemptsRanked orders by score then answer time", async () => {
+await step("the admin board orders by score then answer time", async () => {
   const r = await db.query(
     `WITH best AS (
        SELECT DISTINCT ON (a.participant_id)
@@ -288,7 +291,7 @@ await step("bestAttemptsRanked orders by score then answer time", async () => {
   return order.join(" > ");
 });
 
-await step("a retake does not put one student on the board twice", async () => {
+await step("a retake does not put one student on the admin board twice", async () => {
   const asha = participantIds["9800000001"];
   const served = [{ p: 0, qid: Number(questionIds[0]), text: "q", opts: ["A", "B"], ci: 0, pts: 1 }];
   const r = await db.query(

@@ -2,7 +2,7 @@ import { sql } from "@/lib/db";
 import { ok, fail, route } from "@/lib/api";
 import { getOrganizationBySlug } from "@/lib/queries";
 import { slugify } from "@/lib/validate";
-import { acceptingEntries, closesInMs } from "@/lib/eventWindow";
+import { acceptingEntries, beginsInMs, closesInMs, roundNotStarted } from "@/lib/eventWindow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,8 +29,13 @@ export const GET = route(async (req: Request) => {
           AND is_active = true AND is_deleted = false)                       AS total_questions,
       (SELECT count(*)::int FROM attempts
         WHERE organization_id = ${organization.id}
-          AND status = 'completed' AND is_deleted = false)                   AS played
-  `) as unknown as { total_questions: number; played: number }[];
+          AND status = 'completed' AND is_deleted = false)                   AS played,
+      -- Part of whether the door is open, not just a detail of the quiz: a
+      -- timed event admits nobody until its round has been started.
+      (SELECT time_limit_seconds FROM question_sets
+        WHERE id = ${organization.question_set_id}
+          AND is_deleted = false)                                            AS time_limit_seconds
+  `) as unknown as { total_questions: number; played: number; time_limit_seconds: number | null }[];
 
   const total = organization.question_set_id ? counts.total_questions : 0;
   const asked = organization.question_count ? Math.min(organization.question_count, total) : total;
@@ -40,14 +45,17 @@ export const GET = route(async (req: Request) => {
       slug: organization.slug,
       name: organization.name,
       city: organization.city,
+      // Open covers the waiting room too: registering is what a student does
+      // there, and the round starting is a separate thing they wait for.
       isOpen: acceptingEntries(organization) && asked > 0,
+      notStarted: roundNotStarted(organization, counts.time_limit_seconds ?? null),
+      beginsInMs: beginsInMs(organization, counts.time_limit_seconds ?? null),
       closesInMs: closesInMs(organization),
       hasQuestions: asked > 0,
       questionCount: asked,
       played: counts.played,
       requireEmail: organization.require_email,
       collectClass: organization.collect_class,
-      showLeaderboard: organization.show_leaderboard,
       allowRetake: organization.allow_retake,
       prizeNote: organization.prize_note,
     },
