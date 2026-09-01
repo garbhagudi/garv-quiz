@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, apiRetry, errText } from "@/lib/client";
-import { Dots, Loading, PrizeNote } from "@/components/Stage";
+import { Loading, PrizeNote, Progress } from "@/components/Stage";
 import { QuestionText } from "@/components/QuestionText";
 
 /* -------------------------------- types ---------------------------------- */
@@ -860,6 +860,12 @@ function Question({
 
   useEffect(() => {
     started.current = Date.now();
+    /* Back to the top for each question. The component remounts on `key`, but
+       the window keeps its scroll position - so a student who scrolled down to
+       reach option D landed on the next question already past its wording. No
+       smooth scroll: this is a new screen, not a journey, and at ten seconds a
+       question the animation is time taken from reading. */
+    window.scrollTo(0, 0);
     const t = setInterval(() => setTick(Date.now() - started.current), 100);
     return () => clearInterval(t);
   }, []);
@@ -886,9 +892,7 @@ function Question({
 
   return (
     <>
-      <Dots total={total} done={index} />
-
-      <div className="mb-2.5 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <span className="font-display text-[12.5px] font-bold uppercase tracking-[0.14em] text-apricot">
           Question {index + 1} of {total}
         </span>
@@ -905,19 +909,31 @@ function Question({
               {fmtSeconds(tick)}
             </span>
           ) : (
+            /* Under a minute the urgency used to come from scaling the digits
+               28% on a loop, which is the one moment they most need to be read.
+               The number now holds still in coral and a small dot does the
+               pulsing beside it - which is what that animation was built for. */
             <span
               className={[
-                "font-display text-[14px] font-bold tabular-nums",
-                remainingMs <= 60_000 ? "animate-pulseDot text-coral" : "text-plum-soft",
+                "flex items-center gap-1.5 font-display text-[14px] font-bold tabular-nums",
+                remainingMs <= 60_000 ? "text-coral" : "text-plum-soft",
               ].join(" ")}
               role="timer"
               aria-live={remainingMs <= 60_000 ? "polite" : "off"}
             >
+              {remainingMs <= 60_000 ? (
+                <span
+                  className="h-[7px] w-[7px] shrink-0 animate-pulseDot rounded-full bg-coral"
+                  aria-hidden="true"
+                />
+              ) : null}
               {fmtClock(remainingMs)}
             </span>
           )}
         </span>
       </div>
+
+      <Progress done={index} total={total} />
 
       {question.img ? (
         /* eslint-disable-next-line @next/next/no-img-element */
@@ -1010,7 +1026,7 @@ function Finished({
   const first = name.trim().split(" ")[0];
   return (
     <>
-      <Dots total={result.questionCount} done={result.questionCount} />
+      <Progress done={result.questionCount} total={result.questionCount} />
       <h1 className="mb-3 font-display text-[28px] font-bold leading-tight text-plum">
         {first ? `Thank you, ${first}` : "Thank you for taking part"}
       </h1>

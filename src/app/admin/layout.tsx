@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getAdminSession } from "@/lib/session";
 import { AdminNav } from "./AdminNav";
 
-export const metadata: Metadata = { title: { default: "Admin", template: "%s — Quiz Admin" } };
+export const metadata: Metadata = { title: { default: "Admin", template: "%s - Quiz Admin" } };
 
 export const dynamic = "force-dynamic";
 

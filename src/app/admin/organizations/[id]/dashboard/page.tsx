@@ -9,7 +9,7 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const organization = await getOrganizationByIdOrSlug((await params).id);
-  return { title: organization ? `${organization.name} — live` : "Live dashboard" };
+  return { title: organization ? `${organization.name} - live` : "Live dashboard" };
 }
 
 /**

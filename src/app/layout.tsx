@@ -18,8 +18,8 @@ const body = Nunito({
 
 export const metadata: Metadata = {
   title: {
-    default: "Quiz Challenge — GarbhaGudi",
-    template: "%s — GarbhaGudi Quiz",
+    default: "Quiz Challenge - GarbhaGudi",
+    template: "%s - GarbhaGudi Quiz",
   },
   description: "Live quiz for GARV 2026, GarbhaGudi.",
   robots: { index: false, follow: false },

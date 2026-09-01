@@ -97,6 +97,36 @@ export function Dots({
   );
 }
 
+/**
+ * Progress through the quiz, as a bar.
+ *
+ * `Dots` came from the original 15-question quiz, where one circle per question
+ * fitted on a single row and could be read at a glance. A 30-question set wraps
+ * it onto two rows of thirty 15px circles on a phone - about 58px of vertical
+ * space, above every question, that nobody can actually count. A bar carries
+ * the same information at any length and in a fifth of the height.
+ *
+ * Hidden from screen readers: the "Question 12 of 30" beside it already says
+ * this, and saying it twice helps nobody.
+ */
+export function Progress({ done, total }: { done: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.max(0, (done / total) * 100)) : 0;
+  return (
+    <div
+      /* Bracketed opacity: 12 is not on Tailwind's opacity scale, so `bg-plum/12`
+         silently emits nothing and the track renders solid plum - a bar that
+         looks full at question one. Same convention as border-ink/[0.07]. */
+      className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-plum/[0.12]"
+      aria-hidden="true"
+    >
+      <div
+        className="h-full rounded-full bg-plum transition-[width] duration-300 ease-out"
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
 /** The four pulsing dots used while something loads. */
 export const Loading = ({ label }: { label: string }) => (
   <>

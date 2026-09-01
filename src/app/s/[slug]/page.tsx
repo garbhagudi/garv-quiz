@@ -12,7 +12,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const organization = await getOrganizationBySlug((await params).slug);
-  return { title: organization ? `${organization.name} — Quiz Challenge` : "Quiz Challenge" };
+  return { title: organization ? `${organization.name} - Quiz Challenge` : "Quiz Challenge" };
 }
 
 export default async function OrganizationPage({ params }: Props) {
