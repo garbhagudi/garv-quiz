@@ -97,6 +97,32 @@ export function Chip({
   return <span className={`chip ${tones[tone]}`}>{children}</span>;
 }
 
+/** One event's state, worded and coloured the same way on every screen. */
+const STATUS = {
+  closed: { label: "Closed", tone: "neutral" },
+  "waiting-room": { label: "Waiting room", tone: "info" },
+  live: { label: "Live", tone: "good" },
+  over: { label: "Round over", tone: "neutral" },
+  open: { label: "Open", tone: "good" },
+} as const;
+
+export function EventChip({
+  status,
+  note,
+}: {
+  status: keyof typeof STATUS;
+  /** Appended after a dot - a countdown, on the screens that tick. */
+  note?: string;
+}) {
+  const { label, tone } = STATUS[status];
+  return (
+    <Chip tone={tone}>
+      {label}
+      {note ? ` · ${note}` : ""}
+    </Chip>
+  );
+}
+
 /* -------------------------------- feedback ------------------------------- */
 
 export const Notice = ({

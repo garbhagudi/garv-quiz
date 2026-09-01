@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errText } from "@/lib/client";
-import { PageHead, Chip, Notice, Spinner, Empty, Modal, when } from "@/components/admin/Ui";
+import { PageHead, Chip, EventChip, Notice, Spinner, Empty, Modal, when } from "@/components/admin/Ui";
 import {
   OrganizationForm,
   blankDraft,
@@ -12,10 +12,12 @@ import {
   type OrganizationDraft,
   type SetOption,
 } from "@/components/admin/OrganizationForm";
+import { eventStatus } from "@/lib/eventWindow";
 import type { Organization } from "@/lib/types";
 
 type Row = Organization & {
   set_name: string | null;
+  time_limit_seconds: number | null;
   registered: number;
   completed: number;
   set_questions: number;
@@ -25,12 +27,23 @@ type Row = Organization & {
 export function OrganizationsClient({ canWrite }: { canWrite: boolean }) {
   const params = useSearchParams();
   const [rows, setRows] = useState<Row[] | null>(null);
+  /* A round ends by its deadline passing, not by anything being written, so a
+     badge left alone would keep saying "Live" after the round was over. Ticks
+     only while some event on the page actually has a deadline to run out. */
+  const [now, setNow] = useState(() => Date.now());
   const [sets, setSets] = useState<SetOption[]>([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   const [editing, setEditing] = useState<{ id?: number; draft: OrganizationDraft } | null>(null);
+
+  const anyDeadline = rows?.some((r) => r.closes_at) ?? false;
+  useEffect(() => {
+    if (!anyDeadline) return;
+    const t = setInterval(() => setNow(Date.now()), 10_000);
+    return () => clearInterval(t);
+  }, [anyDeadline]);
 
   const load = useCallback(async () => {
     setError("");
@@ -167,9 +180,9 @@ export function OrganizationsClient({ canWrite }: { canWrite: boolean }) {
                     <td className="text-right font-semibold tabular-nums">{s.completed}</td>
                     <td className="text-right tabular-nums">{s.top_score ?? "—"}</td>
                     <td>
-                      <Chip tone={s.is_open ? "good" : "neutral"}>
-                        {s.is_open ? "Open" : "Closed"}
-                      </Chip>
+                      {/* Never `is_open` on its own: a deadline that has passed
+                          closes an event without flipping that switch. */}
+                      <EventChip status={eventStatus(s, s.time_limit_seconds ?? null, now)} />
                     </td>
                     <td className="whitespace-nowrap text-[12.5px] text-muted">
                       {when(s.created_at, false)}

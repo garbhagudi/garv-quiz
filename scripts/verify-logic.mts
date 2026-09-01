@@ -23,6 +23,7 @@ import {
   acceptingEntries,
   canOpenWaitingRoom,
   canStartRound,
+  eventStatus,
   closesInMs,
   roundEnded,
   roundRunning,
@@ -708,6 +709,47 @@ const LOBBY = { is_open: true, closes_at: null };
 const RUNNING = { is_open: true, closes_at: at(60_000) };
 const OVER = { is_open: true, closes_at: at(-1_000) };
 const LIMIT = 60;
+
+check("one event reads the same on every screen", () => {
+  // The bug this pins: the list showed "Open" for an event whose round had
+  // finished, because it read is_open on its own. A passed deadline closes an
+  // event without ever touching that switch.
+  eq(eventStatus(OVER, LIMIT, T0), "over", "switch on, deadline gone");
+  eq(eventStatus(OVER, null, T0), "over", "untimed cannot really be here, but is still over");
+
+  eq(eventStatus(CLOSED, LIMIT, T0), "closed");
+  eq(eventStatus(CLOSED, null, T0), "closed");
+
+  eq(eventStatus(LOBBY, LIMIT, T0), "waiting-room", "timed and open with no round");
+  eq(eventStatus(LOBBY, null, T0), "open", "untimed and open is just open");
+
+  eq(eventStatus(RUNNING, LIMIT, T0), "live");
+  eq(eventStatus(RUNNING, LIMIT, T0 + 59_999), "live", "a millisecond before the deadline");
+  eq(eventStatus(RUNNING, LIMIT, T0 + 60_000), "over", "and over on it");
+});
+
+check("the badge and the buttons never contradict each other", () => {
+  // Whatever the list says, the event's own page must offer something that
+  // matches it - "Open" beside a Start button was the complaint.
+  const cases = [
+    [CLOSED, LIMIT], [CLOSED, null],
+    [LOBBY, LIMIT], [LOBBY, null],
+    [RUNNING, LIMIT], [OVER, LIMIT],
+  ] as const;
+  for (const [o, limit] of cases) {
+    const status = eventStatus(o, limit, T0);
+    const canStart = canStartRound(o, limit, T0);
+    const canOpen = canOpenWaitingRoom(o, limit, T0);
+    // Start is offered wherever there is something to start. "live" is already
+    // running; "open" is an untimed event already taking entries, which has no
+    // round to begin - those two are the only states with nothing to press.
+    const nothingToStart = status === "live" || status === "open";
+    eq(canStart, !nothingToStart, `${status}: Start offered?`);
+    // The waiting room is on offer exactly when nobody can get in yet.
+    eq(canOpen, limit !== null && (status === "closed" || status === "over"),
+       `${status}: waiting room offered?`);
+  }
+});
 
 check("a timed event offers Start until a clock is actually ticking", () => {
   eq(canStartRound(CLOSED, LIMIT, T0), true, "closed");

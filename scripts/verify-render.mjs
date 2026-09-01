@@ -41,6 +41,7 @@ const tsc = spawnSync(
   [
     join(root, "node_modules", "typescript", "bin", "tsc"),
     join(root, "src", "components", "QuestionText.tsx"),
+    join(root, "src", "components", "admin", "QrCode.tsx"),
     join(root, "src", "lib", "questionText.ts"),
     "--outDir", out,
     "--rootDir", join(root, "src"),
@@ -81,6 +82,10 @@ const React = (await import("react")).default;
 const { renderToStaticMarkup } = await import("react-dom/server");
 const { QuestionText } = await import(
   pathToFileURL(join(out, "components", "QuestionText.js")).href
+);
+
+const { QrCode } = await import(
+  pathToFileURL(join(out, "components", "admin", "QrCode.js")).href
 );
 
 const html = (props) => renderToStaticMarkup(React.createElement(QuestionText, props));
@@ -168,6 +173,65 @@ check(
 check("empty wording renders an empty paragraph, not a crash", html({ text: "" }) === "<p></p>");
 check("wording that is only blank lines is empty too", html({ text: "\n\n  \n" }) === "<p></p>");
 check("wording that is only a stray dash is text, not an empty bullet", html({ text: "-" }) === "<p>-</p>");
+
+/* ----------------------------- the join QR ------------------------------
+   A code nobody can scan is worse than no code, and it would fail silently in
+   a hall. There is no reader here to decode it, so this checks the structure
+   the spec demands instead: the quiet zone is genuinely empty, and all three
+   finder patterns are exactly the shape a scanner locks on to. */
+
+console.log("\nRendering the join QR code\n");
+
+const QUIET = 4;
+const qrSvg = renderToStaticMarkup(
+  React.createElement(QrCode, { value: "https://quiz.example.com/s/embryology" }),
+);
+
+const side = Number((qrSvg.match(/viewBox="0 0 (\d+) \1"/) ?? [])[1]);
+const dark = new Set(
+  [...qrSvg.matchAll(/M(\d+) (\d+)h1v1h-1z/g)].map((m) => `${m[1]},${m[2]}`),
+);
+const isDark = (x, y) => dark.has(`${x},${y}`);
+
+check("it renders one svg with a square viewBox", Number.isFinite(side) && side > 20, `side ${side}`);
+check("every module is folded into a single path", (qrSvg.match(/<path/g) ?? []).length === 1);
+check("there are modules to scan", dark.size > 50, `${dark.size} dark modules`);
+
+const strayModule = [...dark].some((k) => {
+  const [x, y] = k.split(",").map(Number);
+  return x < QUIET || y < QUIET || x >= side - QUIET || y >= side - QUIET;
+});
+check("the quiet zone the spec requires is actually clear", !strayModule);
+
+/** The 7x7 eye a reader locks on to: solid ring, gap, solid 3x3 core. */
+const FINDER = [
+  "#######",
+  "#     #",
+  "# ### #",
+  "# ### #",
+  "# ### #",
+  "#     #",
+  "#######",
+];
+const finderAt = (ox, oy) =>
+  FINDER.every((row, r) =>
+    [...row].every((cell, c) => isDark(ox + c, oy + r) === (cell === "#")),
+  );
+
+check("top-left finder pattern is correct", finderAt(QUIET, QUIET));
+check("top-right finder pattern is correct", finderAt(side - QUIET - 7, QUIET));
+check("bottom-left finder pattern is correct", finderAt(QUIET, side - QUIET - 7));
+
+const other = renderToStaticMarkup(
+  React.createElement(QrCode, { value: "https://quiz.example.com/s/clinical" }),
+);
+check("a different link encodes to a different code", other !== qrSvg);
+
+const relative = renderToStaticMarkup(React.createElement(QrCode, { value: "/s/embryology" }));
+check(
+  "a relative path draws a placeholder, never a code pointing nowhere",
+  !relative.includes("<svg") && relative.includes("border-dashed"),
+);
 
 rmSync(out, { recursive: true, force: true });
 

@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Notice, Empty, MEDALS } from "./Ui";
+import { QrCode } from "./QrCode";
 import type { Organization } from "@/lib/types";
 
 /* -------------------------------- shapes --------------------------------- */
@@ -163,9 +164,7 @@ export function RunPanel({
           </p>
         ) : null}
 
-        <p className="mt-3.5 text-[12.5px] text-muted">
-          Join at <code className="rounded bg-petal px-1.5 py-0.5 text-plum">{shareUrl}</code>
-        </p>
+        <JoinBlock shareUrl={shareUrl} />
         {headerLink ? <div className="mt-2">{headerLink}</div> : null}
       </div>
 
@@ -220,6 +219,70 @@ export function RunPanel({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * How the room gets in: the code to scan and the address to type, together.
+ *
+ * Both, not one or the other. A phone with a camera scans; a laptop at the back
+ * types. The code enlarges to fill the screen because the way this actually
+ * gets used is projected, and a 104px square is unreadable past the third row.
+ */
+function JoinBlock({ shareUrl }: { shareUrl: string }) {
+  const [big, setBig] = useState(false);
+
+  // Escape closes the projected view, same as every other overlay here.
+  useEffect(() => {
+    if (!big) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setBig(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [big]);
+
+  return (
+    <>
+      <div className="mt-4 flex items-center justify-center gap-4">
+        <button
+          type="button"
+          onClick={() => setBig(true)}
+          className="shrink-0 rounded-[10px] border border-ink/10 p-1.5 transition hover:border-plum/40 hover:bg-petal"
+          title="Show the code big enough to project"
+        >
+          <QrCode value={shareUrl} className="h-[92px] w-[92px]" />
+        </button>
+
+        <div className="min-w-0 text-left">
+          <p className="font-display text-[10.5px] font-medium uppercase tracking-[0.14em] text-plum-soft">
+            Join at
+          </p>
+          <code className="mt-0.5 block truncate rounded bg-petal px-1.5 py-0.5 text-[12.5px] text-plum">
+            {shareUrl}
+          </code>
+          <p className="mt-1 text-[12px] text-muted">Scan the code, or type the address.</p>
+        </div>
+      </div>
+
+      {big ? (
+        <div
+          className="fixed inset-0 z-50 flex cursor-zoom-out flex-col items-center justify-center gap-6 bg-white p-6"
+          onClick={() => setBig(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Join code, enlarged"
+        >
+          {/* Sized off the shorter side so it fills a projector in either
+              orientation without ever overflowing. */}
+          <QrCode value={shareUrl} className="h-[min(70vh,70vw)] w-[min(70vh,70vw)]" />
+          <p className="text-center font-display text-[clamp(18px,4vw,40px)] font-bold tracking-tight text-plum">
+            {shareUrl}
+          </p>
+          <p className="text-[13px] text-muted">Click anywhere, or press Escape, to close.</p>
+        </div>
+      ) : null}
+    </>
   );
 }
 

@@ -20,6 +20,10 @@ export const GET = route(async (req: Request) => {
   const organizations = await sql`
     SELECT s.*,
            qs.name AS set_name,
+           -- The status badge needs this: a timed event that is open with no
+           -- deadline is a waiting room, an untimed one is simply open, and
+           -- closes_at is null for both.
+           qs.time_limit_seconds,
            (SELECT count(*)::int FROM participants p
              WHERE p.organization_id = s.id AND p.is_deleted = false)             AS registered,
            (SELECT count(*)::int FROM attempts a

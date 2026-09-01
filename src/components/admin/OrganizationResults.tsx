@@ -8,6 +8,7 @@ import {
   canOpenWaitingRoom,
   canStartRound,
   closesInMs,
+  eventStatus,
   roundEnded,
   refreshMs,
   REFRESH_IDLE_MS,
@@ -16,6 +17,7 @@ import {
   PageHead,
   Stats,
   Chip,
+  EventChip,
   Notice,
   Spinner,
   Empty,
@@ -306,9 +308,8 @@ export function OrganizationResults({
   const ended = roundEnded(s, now);
   const leftMs = closesInMs(s, now);
   // `closes_at` is null both for an untimed set and for a timed one nobody has
-  // started, so the set's limit is what tells them apart. The two rules the
-  // buttons need live in eventWindow, shared with the standalone run screen.
-  const timed = data.timeLimitSeconds !== null;
+  // started, so the set's limit is what tells them apart. The rules that need
+  // it live in eventWindow, shared with the standalone run screen and the list.
   const showStart = canStartRound(s, data.timeLimitSeconds, now);
   const showOpenDoors = canOpenWaitingRoom(s, data.timeLimitSeconds, now);
 
@@ -322,17 +323,10 @@ export function OrganizationResults({
             Code <code className="rounded bg-white px-1.5 py-0.5 text-plum">{s.slug}</code>
             {s.city ? ` · ${s.city}` : ""}
             {s.event_date ? ` · ${when(s.event_date, false)}` : ""} ·{" "}
-            <Chip tone={live ? "good" : "neutral"}>
-              {live
-                ? leftMs !== null
-                  ? `Open · closes in ${fmtLeft(leftMs)}`
-                  : timed
-                    ? "Waiting room"
-                    : "Open"
-                : ended
-                  ? "Round over"
-                  : "Closed"}
-            </Chip>
+            <EventChip
+              status={eventStatus(s, data.timeLimitSeconds, now)}
+              note={leftMs !== null && live ? `closes in ${fmtLeft(leftMs)}` : undefined}
+            />
           </>
         }
         actions={

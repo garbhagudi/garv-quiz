@@ -100,6 +100,34 @@ export function questionsReady(
   return (beginsInMs(o, timeLimitSeconds, now) ?? 0) <= 0;
 }
 
+/**
+ * The one word for what an event is doing, for every screen that shows a badge.
+ *
+ * Worth having in one place: `is_open` on its own is never the answer, because
+ * a deadline that has passed closes an event without touching that switch. The
+ * organizations list said "Open" for an event whose round had finished, while
+ * the event's own page offered to start a new one and students were turned
+ * away - three screens, three different readings of the same row.
+ *
+ *   closed        the switch is off; nobody is getting in
+ *   waiting-room  timed and open, but no round started: registering only
+ *   live          a round is counting down
+ *   over          the switch is on but the deadline has passed
+ *   open          untimed and open, taking entries with nothing to run out
+ */
+export type EventStatus = "closed" | "waiting-room" | "live" | "over" | "open";
+
+export function eventStatus(
+  o: EventWindow,
+  timeLimitSeconds: number | null,
+  now = Date.now(),
+): EventStatus {
+  if (roundEnded(o, now)) return "over";
+  if (!acceptingEntries(o, now)) return "closed";
+  if (roundNotStarted(o, timeLimitSeconds)) return "waiting-room";
+  return closesInMs(o, now) === null ? "open" : "live";
+}
+
 /* ---------------------------------------------------------------------------
    What the host may do next.
 
