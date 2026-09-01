@@ -43,6 +43,15 @@ type StartResponse = {
   questions: ClientQuestion[];
   /** Whole-quiz limit from the question set; null means untimed. */
   timeLimitSeconds: number | null;
+  /**
+   * What is actually left of this run. The same as the whole limit for a fresh
+   * attempt, and less for one being picked up again - the server counts it from
+   * when the attempt opened, so coming back on another phone continues the
+   * clock rather than handing out a new one.
+   */
+  remainingMs: number | null;
+  /** True when this is an attempt already under way, not a new one. */
+  resumed?: boolean;
   student: { name: string };
 };
 
@@ -129,6 +138,8 @@ export function QuizFlow(props: QuizFlowProps) {
   // instant rather than a countdown value, so the clock cannot be slowed down
   // by a backgrounded tab dropping its timers.
   const [timeLimitSeconds, setTimeLimitSeconds] = useState<number | null>(null);
+  /** What the server says is left, once it has told us. */
+  const [resumeMs, setResumeMs] = useState<number | null>(null);
   const deadline = useRef(0);
   const [remainingMs, setRemainingMs] = useState(0);
 
@@ -145,6 +156,17 @@ export function QuizFlow(props: QuizFlowProps) {
   const entering = useRef(false);
 
   /* ------------------------------ register ------------------------------- */
+
+  /** Puts the countdown where the server says it is, and shows the questions. */
+  const beginWith = useCallback((leftMs: number | null) => {
+    runStart.current = Date.now();
+    if (leftMs !== null) {
+      deadline.current = Date.now() + leftMs;
+      setRemainingMs(leftMs);
+    }
+    setScreen("quiz");
+  }, []);
+
 
   async function start(e: React.FormEvent) {
     e.preventDefault();
@@ -178,7 +200,14 @@ export function QuizFlow(props: QuizFlowProps) {
       setAttemptId(data.attemptId);
       setQuestions(data.questions);
       setShape(shapeOf(data.questions));
-      setScreen("instructions");
+      setResumeMs(data.remainingMs ?? null);
+      if (data.resumed) {
+        // Their clock has been running since the attempt opened, so the rules
+        // screen would be spending time they have already lost. Straight in.
+        beginWith(data.remainingMs ?? null);
+      } else {
+        setScreen("instructions");
+      }
     } catch (err) {
       setError(errText(err));
       setBusy(false);
@@ -209,19 +238,13 @@ export function QuizFlow(props: QuizFlowProps) {
       setAttemptId(data.attemptId);
       setQuestions(data.questions);
       setIndex(0);
-      runStart.current = Date.now();
-      const limit = data.timeLimitSeconds ?? null;
-      setTimeLimitSeconds(limit);
-      if (limit) {
-        deadline.current = Date.now() + limit * 1000;
-        setRemainingMs(limit * 1000);
-      }
-      setScreen("quiz");
+      setTimeLimitSeconds(data.timeLimitSeconds ?? null);
+      beginWith(data.remainingMs ?? null);
     } catch (err) {
       setError(errText(err));
       entering.current = false;
     }
-  }, [form, props.slug]);
+  }, [form, props.slug, beginWith]);
 
   /**
    * While they wait, ask the public route how the event is doing. It is the
@@ -319,12 +342,7 @@ export function QuizFlow(props: QuizFlowProps) {
    * is unaffected either way: it starts when a question renders.
    */
   function begin() {
-    runStart.current = Date.now();
-    if (timeLimitSeconds) {
-      deadline.current = Date.now() + timeLimitSeconds * 1000;
-      setRemainingMs(timeLimitSeconds * 1000);
-    }
-    setScreen("quiz");
+    beginWith(resumeMs ?? (timeLimitSeconds ? timeLimitSeconds * 1000 : null));
   }
 
   /**

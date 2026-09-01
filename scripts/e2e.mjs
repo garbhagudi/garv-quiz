@@ -1313,18 +1313,28 @@ try {
       )
     ).rows;
 
-  await test("re-entering the very same details just starts again", async () => {
+  await test("re-entering the very same details picks the run back up", async () => {
+    // Never refused, never duplicated: the same details come back to the run
+    // already open rather than opening a second one beside it.
     const c = client("again-same");
     const body = { slug: "again-2026", name: "Same Details", phone: "9861000001", email: "same@x.com" };
     const first = await c.call("/api/quiz/start", { method: "POST", body });
     eq(first.status, 200, "first status");
+    eq(first.data.resumed, false, "the first call opens the run");
     const second = await c.call("/api/quiz/start", { method: "POST", body });
     eq(second.status, 200, "second status");
-    assert(second.data.attemptId !== first.data.attemptId, "expected a fresh attempt");
+    eq(second.data.resumed, true, "the second picks it up");
+    eq(second.data.attemptId, first.data.attemptId, "and it is the same attempt");
 
     const rows = (await rowsFor("again-2026")).filter((r) => r.email === "same@x.com");
     eq(rows.length, 1, "still one row for that student");
-    return "allowed, and still one participant row";
+    const open = await emu.db.query(
+      `SELECT count(*)::int AS n FROM attempts a
+         JOIN participants p ON p.id = a.participant_id
+        WHERE p.email = 'same@x.com'`,
+    );
+    eq(open.rows[0].n, 1, "and one attempt, not two");
+    return "same run, one participant row, one attempt";
   });
 
   await test("the same address with a mistyped number is the same student, not a clash", async () => {
@@ -2043,6 +2053,81 @@ try {
     });
     eq(status, 200, "status");
     return "open, with nothing to run out";
+  });
+
+  await test("the same details on a second phone resume the run, not start another", async () => {
+    /* Found live: enter the same details on a second phone while the first run
+       is still open and a second attempt was created, because the retake rule
+       counts finished attempts and an open one counts nothing. Both submitted,
+       and one person had two scores on the results table. */
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: 1 },
+    });
+    const made = await admin.call("/api/admin/organizations", {
+      method: "POST",
+      body: {
+        name: "Two Phones College",
+        slug: "twophones-2026",
+        questionSetId: roundSetId,
+        requireEmail: false,
+        isOpen: true,
+      },
+    });
+    const id = made.data.organization.id;
+    const body = { slug: "twophones-2026", name: "Both Devices", phone: "9869000001" };
+
+    const phoneA = client("phone-a");
+    const phoneB = client("phone-b");
+    eq((await phoneA.call("/api/quiz/start", { method: "POST", body })).status, 200, "booked in");
+    await admin.call(`/api/admin/organizations/${id}`, { method: "PATCH", body: { startRound: true } });
+    await skipLeadIn(emu.db, "twophones-2026");
+
+    const a = await phoneA.call("/api/quiz/start", { method: "POST", body });
+    eq(a.status, 200, "first phone is playing");
+    eq(a.data.resumed, false, "and it is a new run");
+
+    // Second phone, same details, while the first run is still open.
+    const b = await phoneB.call("/api/quiz/start", { method: "POST", body });
+    eq(b.status, 200, "second phone gets in");
+    eq(b.data.resumed, true, "but it is the same run");
+    eq(b.data.attemptId, a.data.attemptId, "the very same attempt");
+    assert(
+      b.data.remainingMs <= a.data.remainingMs,
+      `resuming handed out more time: ${a.data.remainingMs} -> ${b.data.remainingMs}`,
+    );
+
+    const rows = await emu.db.query(
+      `SELECT count(*)::int AS n FROM attempts a
+         JOIN organizations o ON o.id = a.organization_id
+        WHERE o.slug = 'twophones-2026'`,
+    );
+    eq(rows.rows[0].n, 1, "one person, one attempt");
+
+    // Both submit. The first wins; the second is told the same result.
+    const answers = await answersFor(emu.db, a.data.attemptId, 2);
+    const first = await phoneB.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: b.data.attemptId, answers, elapsedMs: 3000 },
+    });
+    eq(first.status, 200, "second phone submits");
+    const second = await phoneA.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: a.data.attemptId, answers, elapsedMs: 3000 },
+    });
+    eq(second.status, 200, "first phone submits too");
+    eq(second.data.alreadySubmitted, true, "and is told it was already in");
+
+    const detail = await admin.call(`/api/admin/organizations/${id}`);
+    eq(detail.data.summary.completed, 1, "one completed attempt, not two");
+    eq(detail.data.results.length, 1, "one row on the results table");
+
+    await admin.call(`/api/admin/organizations/${id}?mode=all&confirm=twophones-2026`, { method: "DELETE" });
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: null },
+    });
+    return "two phones, one attempt, one score";
   });
 
   await test("clearing entries does not leave the door ajar mid-round", async () => {

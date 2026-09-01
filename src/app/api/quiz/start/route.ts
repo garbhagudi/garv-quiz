@@ -1,7 +1,7 @@
 import { sql } from "@/lib/db";
 import { ok, fail, route, readJson, ipHash } from "@/lib/api";
 import { getOrganizationBySlug } from "@/lib/queries";
-import { buildServedQuestions, stripAnswers } from "@/lib/quiz";
+import { buildServedQuestions, stripAnswers, type ServedQuestion } from "@/lib/quiz";
 import { registerSchema, emailField, normalizePhone } from "@/lib/validate";
 import { nameMatches } from "@/lib/identity";
 import { acceptingEntries, beginsInMs, questionsReady, roundNotStarted } from "@/lib/eventWindow";
@@ -229,6 +229,45 @@ export const POST = route(async (req: Request) => {
     });
   }
 
+  /* ---- one run at a time ------------------------------------------------
+     The retake rule below counts finished attempts, so while a run is still
+     open it counts nothing: entering the same details on a second phone opened
+     a second attempt, and both of them submitted. One person, two rows on the
+     results table, two scores.
+
+     So an open attempt is resumed rather than replaced. That is also the honest
+     answer for the case this protects - a phone that died, a tab closed by
+     accident - because the student comes back to the same questions with the
+     clock where they left it, not to a fresh one. Whichever device submits
+     first wins; the other gets the same result back, since /api/quiz/submit
+     already answers a re-submit with the first outcome instead of erroring. */
+  const [open] = (await sql`
+    SELECT public_id, served, started_at
+      FROM attempts
+     WHERE participant_id = ${participant.id}
+       AND organization_id = ${organization.id}
+       AND status = 'in_progress' AND is_deleted = false
+     ORDER BY started_at DESC
+     LIMIT 1`) as unknown as { public_id: string; served: ServedQuestion[]; started_at: string }[];
+
+  if (open) {
+    const startedAt = new Date(open.started_at).getTime();
+    return ok({
+      attemptId: open.public_id,
+      questions: stripAnswers(Array.isArray(open.served) ? open.served : []),
+      timeLimitSeconds,
+      // Counted from when the run actually opened, so coming back on another
+      // device continues the clock instead of restarting it.
+      remainingMs:
+        timeLimitSeconds === null || !Number.isFinite(startedAt)
+          ? null
+          : Math.max(0, startedAt + timeLimitSeconds * 1000 - Date.now()),
+      resumed: true,
+      student: { name: input.name },
+      organization: { name: organization.name, slug: organization.slug, prizeNote: organization.prize_note },
+    });
+  }
+
   /* --------------------------- open the attempt -------------------------- */
   const [attempt] = (await sql`
     INSERT INTO attempts (
@@ -247,6 +286,8 @@ export const POST = route(async (req: Request) => {
     attemptId: attempt.public_id,
     questions: stripAnswers(served),
     timeLimitSeconds,
+    remainingMs: timeLimitSeconds === null ? null : timeLimitSeconds * 1000,
+    resumed: false,
     student: { name: input.name },
     organization: { name: organization.name, slug: organization.slug, prizeNote: organization.prize_note },
   });
