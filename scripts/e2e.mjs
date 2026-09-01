@@ -2045,6 +2045,139 @@ try {
     return "open, with nothing to run out";
   });
 
+  await test("clearing entries does not leave the door ajar mid-round", async () => {
+    /* Found live: Clear entries soft-deletes the participants, but the phone
+       lookup deliberately sees deleted rows so the upsert cannot collide with a
+       hidden one. The door read that as "already registered", so everybody the
+       host had just wiped could walk back into a running round and take a fresh
+       clock - which is the whole thing the door exists to stop. */
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: 1 },
+    });
+    const made = await admin.call("/api/admin/organizations", {
+      method: "POST",
+      body: {
+        name: "Cleared College",
+        slug: "cleared-2026",
+        questionSetId: roundSetId,
+        requireEmail: false,
+        isOpen: true,
+      },
+    });
+    const id = made.data.organization.id;
+    const body = { slug: "cleared-2026", name: "Wiped Out", phone: "9868000001" };
+
+    // Registers in the waiting room and plays a round.
+    const c = client("cleared-player");
+    eq((await c.call("/api/quiz/start", { method: "POST", body })).status, 200, "booked in");
+    await admin.call(`/api/admin/organizations/${id}`, { method: "PATCH", body: { startRound: true } });
+    await skipLeadIn(emu.db, "cleared-2026");
+    const run = await c.call("/api/quiz/start", { method: "POST", body });
+    eq(run.status, 200, "played");
+    const answers = await answersFor(emu.db, run.data.attemptId);
+    await c.call("/api/quiz/submit", {
+      method: "POST",
+      body: { attemptId: run.data.attemptId, answers, elapsedMs: 2000 },
+    });
+
+    // Host wipes the room and starts a fresh round without reopening the doors.
+    const cleared = await admin.call(
+      `/api/admin/organizations/${id}?mode=entries&confirm=cleared-2026`,
+      { method: "DELETE" },
+    );
+    eq(cleared.status, 200, "entries cleared");
+    await admin.call(`/api/admin/organizations/${id}`, { method: "PATCH", body: { startRound: true } });
+    await skipLeadIn(emu.db, "cleared-2026");
+
+    const again = await c.call("/api/quiz/start", { method: "POST", body });
+    eq(again.status, 403, "a wiped participant is new again, and the round has started");
+    assert(/already started/i.test(again.data.error), `message was: ${again.data.error}`);
+
+    // The waiting room is how they get back in, exactly like anybody else.
+    const back = await joinViaWaitingRoom(admin, emu.db, c, id, "cleared-2026", {
+      name: body.name,
+      phone: body.phone,
+    });
+    eq(back.status, 200, "and the waiting room lets them back in");
+    assert(back.data.questions, "with questions");
+
+    await admin.call(`/api/admin/organizations/${id}?mode=all&confirm=cleared-2026`, { method: "DELETE" });
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: null },
+    });
+    return "wiped, refused mid-round, readmitted through the waiting room";
+  });
+
+  await test("somebody who registers and walks away is listed as never started", async () => {
+    /* The whole point of the waiting room is that people book in early, so some
+       of them will drift off before the round begins. The host needs to see who
+       registered and never saw a question, apart from who opened the quiz and
+       never sent it back. */
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: 1 },
+    });
+    const made = await admin.call("/api/admin/organizations", {
+      method: "POST",
+      body: {
+        name: "No Show College",
+        slug: "noshow-2026",
+        questionSetId: roundSetId,
+        requireEmail: false,
+        isOpen: true,
+      },
+    });
+    const id = made.data.organization.id;
+
+    // One registers and leaves. One registers, starts, and never submits.
+    const ghost = client("noshow-ghost");
+    const quitter = client("noshow-quitter");
+    for (const [c, name, phone] of [
+      [ghost, "Never Played", "9867000001"],
+      [quitter, "Gave Up", "9867000002"],
+    ]) {
+      const r = await c.call("/api/quiz/start", { method: "POST", body: { slug: "noshow-2026", name, phone } });
+      eq(r.status, 200, `${name} registered`);
+      eq(r.data.waiting, true, `${name} is waiting`);
+    }
+    await admin.call(`/api/admin/organizations/${id}`, { method: "PATCH", body: { startRound: true } });
+    await skipLeadIn(emu.db, "noshow-2026");
+    // Only the quitter comes back for questions; the ghost never returns.
+    const started = await quitter.call("/api/quiz/start", {
+      method: "POST",
+      body: { slug: "noshow-2026", name: "Gave Up", phone: "9867000002" },
+    });
+    eq(started.status, 200, "the quitter got questions");
+
+    const { data } = await admin.call(`/api/admin/organizations/${id}`);
+    eq(data.summary.registered, 2, "both are registered");
+    eq(data.summary.completed, 0, "neither submitted");
+    eq(data.notFinished.length, 2, "both are listed as unfinished");
+
+    const byName = Object.fromEntries(data.notFinished.map((p) => [p.name, p]));
+    eq(byName["Never Played"].attempts, 0, "registered and left: no attempt at all");
+    eq(byName["Gave Up"].attempts, 1, "started but never sent it back");
+
+    // And the workbook says the same thing in words.
+    const res = await admin.call(`/api/admin/organizations/${id}/export`, { raw: true });
+    const wb = XLSX.read(Buffer.from(await res.res.arrayBuffer()), { type: "buffer" });
+    const sheet = XLSX.utils.sheet_to_json(wb.Sheets["Did Not Finish"]);
+    const ghostRow = sheet.find((r) => r.Name === "Never Played");
+    const quitRow = sheet.find((r) => r.Name === "Gave Up");
+    eq(ghostRow["Got as far as"], "Never started", "ghost row");
+    eq(quitRow["Got as far as"], "Started, not submitted", "quitter row");
+    eq(ghostRow["Attempts started"], 0, "ghost attempts");
+
+    await admin.call(`/api/admin/organizations/${id}?mode=all&confirm=noshow-2026`, { method: "DELETE" });
+    await admin.call(`/api/admin/sets/${roundSetId}`, {
+      method: "PATCH",
+      body: { name: "Round set", description: "e2e", timeLimitMinutes: null },
+    });
+    return "one never started, one started and stopped, both visible";
+  });
+
   await test("a finished round can be reopened as a waiting room", async () => {
     // A waiting room only exists on a timed set, and an earlier test left this
     // one untimed. Put a minute back for the duration, and restore it after.

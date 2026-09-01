@@ -498,6 +498,9 @@ function RegisterForm({
 
       <PrizeNote text={prizeNote} />
 
+      {/* The placeholder says both names on purpose: a single name is refused
+          with "Enter your full name.", and the first name is what recognises a
+          student coming back having mistyped their number. */}
       <label className="field" htmlFor="n">
         Full name
       </label>
@@ -507,6 +510,7 @@ function RegisterForm({
         value={form.name}
         onChange={set("name")}
         autoComplete="name"
+        placeholder="First and last name"
         disabled={busy}
       />
 

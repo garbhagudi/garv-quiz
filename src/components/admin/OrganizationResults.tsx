@@ -634,7 +634,10 @@ export function OrganizationResults({
             <Empty>Everyone who registered finished the quiz.</Empty>
           ) : (
             <>
-              <p className="hint mb-3">Registered but never submitted.</p>
+              <p className="hint mb-3">
+                Registered but never submitted. &ldquo;Never started&rdquo; means they signed up
+                and left without seeing a question &mdash; common while the waiting room is open.
+              </p>
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
@@ -642,7 +645,8 @@ export function OrganizationResults({
                       <th>Name</th>
                       <th>Mobile</th>
                       <th>Email</th>
-                      <th className="text-right">Started</th>
+                      {s.collect_class ? <th>Class</th> : null}
+                      <th>Got as far as</th>
                       <th>Registered</th>
                     </tr>
                   </thead>
@@ -652,7 +656,20 @@ export function OrganizationResults({
                         <td className="font-semibold">{p.name}</td>
                         <td className="tabular-nums">{p.phone}</td>
                         <td className="max-w-[220px] truncate text-[13px]">{p.email || "—"}</td>
-                        <td className="text-right tabular-nums">{p.attempts}</td>
+                        {s.collect_class ? (
+                          <td className="text-[13px]">{p.class_or_year || "—"}</td>
+                        ) : null}
+                        <td className="whitespace-nowrap">
+                          {p.attempts === 0 ? (
+                            <Chip>Never started</Chip>
+                          ) : (
+                            <Chip tone="warn">
+                              {p.attempts === 1
+                                ? "Started, not submitted"
+                                : `${p.attempts} starts, none submitted`}
+                            </Chip>
+                          )}
+                        </td>
                         <td className="whitespace-nowrap text-[12.5px] text-muted">
                           {when(p.created_at)}
                         </td>

@@ -38,7 +38,9 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
     allAttemptsRanked(id),
     questionAnalysis(id),
     sql`
-      SELECT p.name, p.phone, p.email, p.class_or_year, p.created_at
+      SELECT p.name, p.phone, p.email, p.class_or_year, p.created_at,
+             (SELECT count(*)::int FROM attempts a
+               WHERE a.participant_id = p.id AND a.is_deleted = false)  AS attempts
         FROM participants p
        WHERE p.organization_id = ${id} AND p.is_deleted = false
          AND NOT EXISTS (SELECT 1 FROM attempts a
@@ -111,17 +113,27 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
   XLSX.utils.book_append_sheet(wb, wsAnalysis, "Question Analysis");
 
   /* ---------------------------- Did not finish --------------------------- */
-  const pendingRows = (pending as unknown as Record<string, string>[]).map((p) => ({
-    Name: p.name,
-    Mobile: p.phone,
-    Email: p.email,
-    "Class / Year": p.class_or_year,
-    Registered: stamp(p.created_at),
-  }));
+  const pendingRows = (pending as unknown as Record<string, string | number>[]).map((p) => {
+    const starts = Number(p.attempts ?? 0);
+    return {
+      Name: p.name,
+      Mobile: p.phone,
+      Email: p.email,
+      "Class / Year": p.class_or_year,
+      // Registered and walked away, or opened the quiz and never sent it back.
+      // Worth separating: the first is a no-show, the second is a lost answer.
+      "Got as far as": starts === 0 ? "Never started" : "Started, not submitted",
+      "Attempts started": starts,
+      Registered: stamp(String(p.created_at)),
+    };
+  });
   const wsPending = XLSX.utils.json_to_sheet(
     pendingRows.length ? pendingRows : [{ Name: "Everyone who registered finished" }],
   );
-  wsPending["!cols"] = [{ wch: 26 }, { wch: 13 }, { wch: 28 }, { wch: 14 }, { wch: 22 }];
+  wsPending["!cols"] = [
+    { wch: 26 }, { wch: 13 }, { wch: 28 }, { wch: 14 },
+    { wch: 22 }, { wch: 16 }, { wch: 22 },
+  ];
   XLSX.utils.book_append_sheet(wb, wsPending, "Did Not Finish");
 
   /* -------------------------------- Event -------------------------------- */

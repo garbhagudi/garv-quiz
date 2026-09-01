@@ -39,7 +39,15 @@ export default async function OrganizationPage({ params }: Props) {
   const asked = organization.question_count ? Math.min(organization.question_count, total) : total;
 
   return (
-    <Stage eyebrow={[organization.name, organization.city].filter(Boolean).join(" · ")}>
+    <Stage
+      /* The event name and city sat above the logo here. Left commented rather
+         than deleted, because it is one line to put back:
+
+         eyebrow={[organization.name, organization.city].filter(Boolean).join(" · ")}
+
+         A student has just typed this event's code to get here, so naming the
+         event again above the brand mark told them nothing they did not know. */
+    >
       <QuizFlow
         slug={organization.slug}
         organizationName={organization.name}

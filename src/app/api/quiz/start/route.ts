@@ -71,9 +71,9 @@ export const POST = route(async (req: Request) => {
   // The phone index is absolute, deleted rows included, so this must not filter
   // on is_deleted or the upsert below could still collide with a hidden row.
   const [byPhone] = (await sql`
-    SELECT id FROM participants
+    SELECT id, is_deleted FROM participants
      WHERE organization_id = ${organization.id} AND phone = ${phone}
-     LIMIT 1`) as unknown as { id: number }[];
+     LIMIT 1`) as unknown as { id: number; is_deleted: boolean }[];
 
   // The email index only covers live rows, so this matches it.
   const [byEmail] = (email
@@ -131,8 +131,15 @@ export const POST = route(async (req: Request) => {
      Untimed events have no round to start and are unaffected. To let new people
      in for a second round, the host opens the waiting room again, which clears
      the deadline and opens this door with it. */
+  /* Booked into THIS round means a row that is live right now. `byPhone` above
+     deliberately sees deleted rows so the upsert cannot collide with a hidden
+     one, but a participant the host wiped with Clear entries has not registered
+     for anything - they are as new as anybody else, and letting them back in
+     mid-round reopened the door this check exists to shut. */
+  const registeredHere = Boolean((byPhone && !byPhone.is_deleted) || byEmail);
+
   const roundStarted = timeLimitSeconds !== null && Boolean(organization.closes_at);
-  if (roundStarted && existingId === null)
+  if (roundStarted && !registeredHere)
     return fail(
       "This round has already started, so new entries are closed. " +
         "Ask the host to let you into the next one.",

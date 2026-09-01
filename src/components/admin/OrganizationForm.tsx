@@ -252,7 +252,7 @@ export function OrganizationForm({
       <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
         <Toggle
           label="Accepting entries"
-          hint="Closing also unlocks the answer review for students."
+          hint="Leave this off. On the day, Open waiting room and Start round throw it for you."
           checked={draft.isOpen}
           disabled={readOnly}
           onChange={(v) => set("isOpen", v)}
