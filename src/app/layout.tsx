@@ -28,6 +28,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Tints the phone browser chrome to match the ground the page sits on.
   themeColor: "#fff7f8",
+  // This palette is light on purpose - blush ground, cream card, plum ink - and
+  // has no dark counterpart. Without saying so, Chrome on Android, Samsung
+  // Internet and others treat the silence as "no opinion" and darken the page
+  // themselves, which turns the brand crimson and the join QR into something
+  // else. Declared here, in the head, so it is known before any stylesheet
+  // loads; repeated in globals.css so it holds for every element after.
+  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

@@ -9,6 +9,10 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    /* Deliberately light, with no dark theme - see the viewport export in
+       app/layout.tsx. Stops browsers auto-darkening the page and keeps native
+       controls (select lists, the date picker, scrollbars) light inside it. */
+    color-scheme: light;
   }
 
   body {
