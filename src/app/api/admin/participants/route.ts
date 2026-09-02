@@ -61,7 +61,7 @@ export const GET = route(async (req: Request) => {
   return ok({ participants: rows, total: count, page, pageSize: PAGE });
 });
 
-/** DELETE /api/admin/participants?id=123 — remove a person and all their attempts. */
+/** DELETE /api/admin/participants?id=123 - remove a person and all their attempts. */
 export const DELETE = route(async (req: Request) => {
   const admin = await requireWriter();
   const id = Number(new URL(req.url).searchParams.get("id") ?? 0);

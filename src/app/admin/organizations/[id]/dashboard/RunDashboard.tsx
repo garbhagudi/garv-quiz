@@ -36,8 +36,8 @@ type Live = {
  * The run screen on a URL of its own, so it can be opened on a second screen
  * and left there. Same panel the organization page shows under "Run the quiz".
  *
- * It polls rather than holding a socket open — a page that reconnects itself
- * after a flaky hall wifi blip is worth more here than instant updates — but it
+ * It polls rather than holding a socket open - a page that reconnects itself
+ * after a flaky hall wifi blip is worth more here than instant updates - but it
  * polls deliberately:
  *
  *   - `/live` rather than the full detail route: one database round trip and a
@@ -85,8 +85,8 @@ export function RunDashboard({
   const live = data ? acceptingEntries(data.organization, now) : false;
 
   // Read inside the interval so changing pace never restarts the loop. Paced on
-  // whether there is anything to watch — a round counting down or people still
-  // answering — not on whether the event happens to be open.
+  // whether there is anything to watch - a round counting down or people still
+  // answering - not on whether the event happens to be open.
   const paceRef = useRef(REFRESH_IDLE_MS);
   paceRef.current = data ? refreshMs(data.organization, data.summary.answering, now) : REFRESH_IDLE_MS;
 
@@ -127,7 +127,7 @@ export function RunDashboard({
       setNotice(
         left === null
           ? "Entries are open. This set has no time limit, so close them yourself when you are done."
-          : `Round started — entries close in ${Math.round(left / 60000)} minutes.`,
+          : `Round started - entries close in ${Math.round(left / 60000)} minutes.`,
       );
       void load();
     } catch (e) {
@@ -135,7 +135,7 @@ export function RunDashboard({
     }
   }
 
-  /** Doors open, clock not running — the room can register and wait. */
+  /** Doors open, clock not running - the room can register and wait. */
   async function openDoors() {
     try {
       await api(`/api/admin/organizations/${organizationId}`, {
@@ -230,7 +230,7 @@ export function RunDashboard({
   );
 }
 
-/** "just now" / "12s ago" / "3m ago" — vague on purpose, it is a reassurance. */
+/** "just now" / "12s ago" / "3m ago" - vague on purpose, it is a reassurance. */
 function agoLabel(ms: number): string {
   const secs = Math.max(0, Math.round(ms / 1000));
   if (secs < 5) return "just now";

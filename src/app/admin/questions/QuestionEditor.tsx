@@ -28,7 +28,7 @@ const LETTERS = "ABCDEFGH";
 
 /**
  * The answer key of a stored row. `correct_indexes` is the real key; a row that
- * predates it — or one seeded by hand-written SQL — falls back to the single
+ * predates it - or one seeded by hand-written SQL - falls back to the single
  * `correct_index`, exactly as the server does when marking.
  */
 export function answerKeyOfRow(q: {
@@ -139,7 +139,7 @@ export function QuestionEditor({
       const { url } = await upload<{ url: string }>("/api/admin/uploads", file);
       setImageUrl(url);
       // A picture with no description is unreadable to a screen reader, so seed
-      // one from the filename — the wording is still the editor's to improve.
+      // one from the filename - the wording is still the editor's to improve.
       if (!imageAlt.trim()) setImageAlt(file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 200));
     } catch (err) {
       setError(errText(err));
@@ -158,16 +158,16 @@ export function QuestionEditor({
     const wording = normalizeQuestionText(text);
     if (wording.length < 5) return setError("Write the question.");
     if (wording.length > 2000)
-      return setError("That question is too long — keep it under 2000 characters.");
+      return setError("That question is too long - keep it under 2000 characters.");
     if (wording.split("\n").length > 40)
-      return setError("That is a lot of lines for one question — keep it under 40.");
+      return setError("That is a lot of lines for one question - keep it under 40.");
     if (cleaned.some((o) => !o)) return setError("Fill in every option, or remove the blank ones.");
     if (new Set(cleaned.map((o) => o.toLowerCase())).size !== cleaned.length)
       return setError("Two options are identical.");
-    if (!correct.length) return setError("Tick the option — or options — that are correct.");
+    if (!correct.length) return setError("Tick the option - or options - that are correct.");
     if (correct.some((i) => i >= cleaned.length)) return setError("Mark which option is correct.");
     if (correct.length === cleaned.length)
-      return setError("Every option cannot be correct — there would be nothing to work out.");
+      return setError("Every option cannot be correct - there would be nothing to work out.");
     if (imageUrl && !imageAlt.trim())
       return setError("Describe the picture, so it still makes sense on a screen reader.");
 
@@ -206,7 +206,7 @@ export function QuestionEditor({
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={
-              "Which of these are true of a blastocyst?\n- It forms around Day 5–6\n- It has an inner cell mass"
+              "Which of these are true of a blastocyst?\n- It forms around Day 5-6\n- It has an inner cell mass"
             }
           />
         </Field>
@@ -238,7 +238,7 @@ export function QuestionEditor({
         <div className="mt-4 rounded-[14px] border-[1.5px] border-ink/10 bg-ink/[0.015] p-3.5">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="font-display text-[11.5px] font-medium uppercase tracking-[0.1em] text-plum-soft">
-              Picture — optional
+              Picture - optional
             </p>
             {imageUrl ? <Chip tone="good">Attached</Chip> : null}
           </div>
@@ -320,7 +320,7 @@ export function QuestionEditor({
         <div className="mt-4">
           <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
             <p className="font-display text-[11.5px] font-medium uppercase tracking-[0.1em] text-plum-soft">
-              Options — tick every correct one
+              Options - tick every correct one
             </p>
             {correct.length === 0 ? (
               <Chip tone="warn">Nothing ticked</Chip>
@@ -383,7 +383,7 @@ export function QuestionEditor({
               <>
                 {" "}
                 With more than one correct option the student is asked to select all that apply, and
-                only the exact set scores — half right earns nothing.
+                only the exact set scores - half right earns nothing.
               </>
             ) : null}
           </p>
@@ -400,7 +400,7 @@ export function QuestionEditor({
               onChange={(e) => setPoints(Math.max(1, Number(e.target.value) || 1))}
             />
           </Field>
-          <Field label="Explanation" hint="Internal only — never shown to students.">
+          <Field label="Explanation" hint="Internal only - never shown to students.">
             <input
               className="input-sm font-normal"
               value={explanation}

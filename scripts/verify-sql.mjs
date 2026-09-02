@@ -1,6 +1,6 @@
 /**
  * Runs the real schema and every non-trivial query in this app against a real
- * Postgres engine (PGlite — Postgres 16 compiled to WASM), so SQL mistakes are
+ * Postgres engine (PGlite - Postgres 16 compiled to WASM), so SQL mistakes are
  * caught here rather than at an event.
  *
  *   node scripts/verify-sql.mjs
@@ -23,7 +23,7 @@ async function step(label, fn) {
   try {
     const out = await fn();
     pass++;
-    console.log(`  ok    ${label}${out ? ` — ${out}` : ""}`);
+    console.log(`  ok    ${label}${out ? ` - ${out}` : ""}`);
   } catch (e) {
     failures.push({ label, message: e.message });
     console.log(`  FAIL  ${label}\n        ${e.message}`);
@@ -868,7 +868,7 @@ await step("activeOwners excludes the row being changed", async () => {
   );
   if (r.rows[0].count !== 1 || excluded.rows[0].count !== 0)
     throw new Error(`counts were ${r.rows[0].count} and ${excluded.rows[0].count}, expected 1 and 0`);
-  return "1 owner overall, 0 once excluded — the last-owner guard will fire";
+  return "1 owner overall, 0 once excluded - the last-owner guard will fire";
 });
 
 /* ------------------------------ soft delete ------------------------------ */
@@ -1170,7 +1170,7 @@ await step("counts ignore deleted rows", async () => {
 
 await step("clearing entries keeps the organization but removes attempts and answers", async () => {
   const before = await db.query(`SELECT count(*)::int n FROM answers`);
-  if (before.rows[0].n === 0) throw new Error("no answers to clear — test setup is wrong");
+  if (before.rows[0].n === 0) throw new Error("no answers to clear - test setup is wrong");
   await db.query(`DELETE FROM participants WHERE organization_id = $1`, [organizationId]);
   const after = await db.query(
     `SELECT (SELECT count(*)::int FROM participants) AS p,

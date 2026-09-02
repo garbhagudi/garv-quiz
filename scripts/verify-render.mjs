@@ -8,7 +8,7 @@
  * check on what a browser is actually handed. It matters most for escaping: a
  * question is written by staff and shown to every student, so if `<script>` in
  * the wording could ever reach the page as markup rather than as text, it would
- * be an injection into a room full of phones. React escapes it — this proves it
+ * be an injection into a room full of phones. React escapes it - this proves it
  * stays that way.
  *
  * `QuestionText` is pure JSX with no hooks, so server rendering exercises
@@ -28,7 +28,7 @@ const out = join(root, ".next-render");
 
 let failures = 0;
 const check = (label, cond, note = "") => {
-  console.log(`  ${cond ? "ok  " : "FAIL"}  ${label}${note ? ` — ${note}` : ""}`);
+  console.log(`  ${cond ? "ok  " : "FAIL"}  ${label}${note ? ` - ${note}` : ""}`);
   if (!cond) failures++;
 };
 
@@ -41,7 +41,7 @@ const tsc = spawnSync(
   [
     join(root, "node_modules", "typescript", "bin", "tsc"),
     join(root, "src", "components", "QuestionText.tsx"),
-    join(root, "src", "components", "admin", "QrCode.tsx"),
+    join(root, "src", "components", "QrCode.tsx"),
     join(root, "src", "lib", "questionText.ts"),
     "--outDir", out,
     "--rootDir", join(root, "src"),
@@ -54,8 +54,8 @@ const tsc = spawnSync(
   { cwd: root, encoding: "utf8" },
 );
 
-// tsc reports the unresolved "@/lib/questionText" alias — it has no tsconfig
-// here — but still emits both files, which is all this needs. Anything else is
+// tsc reports the unresolved "@/lib/questionText" alias - it has no tsconfig
+// here - but still emits both files, which is all this needs. Anything else is
 // a real compile error worth stopping for.
 const noise = /Cannot find module '@\/lib\/questionText'/;
 const realErrors = (tsc.stdout ?? "")
@@ -85,7 +85,7 @@ const { QuestionText } = await import(
 );
 
 const { QrCode, downloadQrPng, isAbsolute } = await import(
-  pathToFileURL(join(out, "components", "admin", "QrCode.js")).href
+  pathToFileURL(join(out, "components", "QrCode.js")).href
 );
 
 const html = (props) => renderToStaticMarkup(React.createElement(QuestionText, props));

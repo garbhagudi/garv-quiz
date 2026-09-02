@@ -53,7 +53,7 @@ export async function api<T = Record<string, unknown>>(
 }
 
 /**
- * Posts one file as multipart/form-data — the JSON helper above cannot carry
+ * Posts one file as multipart/form-data - the JSON helper above cannot carry
  * bytes. Used by the question editor to upload a picture. The Content-Type
  * header is deliberately left unset so the browser adds the MIME boundary.
  */
@@ -88,7 +88,7 @@ export async function apiRetry<T = Record<string, unknown>>(
     } catch (e) {
       last = e;
       const status = e instanceof ApiCallError ? e.status : 0;
-      // 4xx means the request itself is wrong — retrying cannot help.
+      // 4xx means the request itself is wrong - retrying cannot help.
       if (status >= 400 && status < 500) throw e;
       if (i < attempts - 1) await new Promise((r) => setTimeout(r, 700 * (i + 1)));
     }

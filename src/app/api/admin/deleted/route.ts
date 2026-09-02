@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/admin/deleted
  *
- * Everything that has been deleted, in one list, newest first — the recycle bin
+ * Everything that has been deleted, in one list, newest first - the recycle bin
  * behind the admin panel. Each row carries enough to recognise it, who removed
  * it and when, so the team can decide whether to restore.
  */

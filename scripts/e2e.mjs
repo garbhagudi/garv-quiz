@@ -49,7 +49,7 @@ async function test(label, fn) {
   try {
     const note = await fn();
     passed++;
-    console.log(`    ok    ${label}${note ? ` — ${note}` : ""}`);
+    console.log(`    ok    ${label}${note ? ` - ${note}` : ""}`);
   } catch (e) {
     failures.push({ group, label, message: e.message });
     console.log(`    FAIL  ${label}\n          ${e.message}`);
@@ -150,7 +150,7 @@ async function seed(db) {
   return setId;
 }
 
-/** The stored snapshot for one attempt — the answer key included. */
+/** The stored snapshot for one attempt - the answer key included. */
 async function servedFor(db, attemptId) {
   const r = await db.query(`SELECT served FROM attempts WHERE public_id = $1::uuid`, [attemptId]);
   return r.rows[0].served;
@@ -305,7 +305,7 @@ try {
   console.log(`  Next server up on ${BASE}\n`);
 
   /* ====================== 1. the student's journey ===================== */
-  section("Student — landing and registration");
+  section("Student - landing and registration");
 
   const asha = client("asha");
 
@@ -424,7 +424,7 @@ try {
     return "ASHA@X.COM is the same address as asha@x.com";
   });
 
-  section("Student — answering and scoring");
+  section("Student - answering and scoring");
 
   await test("a perfect submission scores full marks", async () => {
     const answers = await answersFor(emu.db, ashaAttempt);
@@ -605,7 +605,7 @@ try {
   });
 
   /* ------------- a field of students, for the admin views ---------------- */
-  section("Student — a field of players");
+  section("Student - a field of players");
 
   const field = [
     { name: "Bhavya N", phone: "9800000002", correct: 15, ms: 400 }, // ties Asha, faster
@@ -635,7 +635,7 @@ try {
   });
 
   /* ========================= 2. the admin panel ======================== */
-  section("Admin — access control");
+  section("Admin - access control");
 
   const admin = client("admin");
 
@@ -717,7 +717,7 @@ try {
     return `${Object.keys(pages).length} pages render`;
   });
 
-  section("Admin — results and export");
+  section("Admin - results and export");
 
   let organizationId;
   await test("the overview page shows real counts and the latest entries", async () => {
@@ -821,7 +821,7 @@ try {
     return "data intact after download";
   });
 
-  section("Admin — managing organizations");
+  section("Admin - managing organizations");
 
   let secondId;
   await test("a new organization can be created", async () => {
@@ -926,7 +926,7 @@ try {
     assert(late.data.error.includes("closed"), `message was: ${late.data.error}`);
   });
 
-  section("Admin — managing questions");
+  section("Admin - managing questions");
 
   let newQuestionId;
   await test("a question can be added", async () => {
@@ -1140,7 +1140,7 @@ try {
   await test("a timed event admits nobody until its round is started", async () => {
     // The event's switch is on, but no round has been given a deadline. Letting
     // students in here would hand each of them a full clock before the host had
-    // said go — the whole point of a timed round.
+    // said go - the whole point of a timed round.
     const made = await admin.call("/api/admin/organizations", {
       method: "POST",
       body: {
@@ -1161,7 +1161,7 @@ try {
     eq(pub.data.organization.beginsInMs, null, "and there is nothing to count down to");
 
     // Registering is exactly what a student does in the waiting room, so this
-    // succeeds — but it opens no attempt and hands out no questions.
+    // succeeds - but it opens no attempt and hands out no questions.
     const { status, data } = await client("early").call("/api/quiz/start", {
       method: "POST",
       body: { slug: "early-2026", name: "Far Too Keen", phone: "9872000009" },
@@ -1211,7 +1211,7 @@ try {
     eq(status, 200, "status");
     eq(data.timeLimitSeconds, 720, "timeLimitSeconds");
     eq(data.questions.length, 3, "questions served");
-    // One limit for the whole quiz — nothing per question carries its own.
+    // One limit for the whole quiz - nothing per question carries its own.
     assert(
       data.questions.every((q) => q.limit === undefined && q.timeLimitSeconds === undefined),
       "a per-question limit leaked into the payload",
@@ -1352,7 +1352,7 @@ try {
       method: "POST",
       body: { slug: "again-2026", name: "Typo Student", phone: "9861000099", email: "typo@x.com" },
     });
-    eq(retry.status, 200, "second status — they must be let in");
+    eq(retry.status, 200, "second status - they must be let in");
 
     const after = (await rowsFor("again-2026")).filter((r) => r.email === "typo@x.com");
     eq(after.length, 1, "one row, not two");
@@ -1418,7 +1418,7 @@ try {
     assert(byPhone.data.error.includes("already played"), `message was: ${byPhone.data.error}`);
     eq(byPhone.data.field, "phone", "field");
 
-    // And by the same address with a different number — the path that used to
+    // And by the same address with a different number - the path that used to
     // report an address clash instead of the real reason.
     const byEmail = await c.call("/api/quiz/start", {
       method: "POST",
@@ -1473,7 +1473,7 @@ try {
     eq(before.phone, "9862000001", "their number before the refused attempt");
 
     // Same address, a number they have never used. Refused, because they have
-    // played — and it must change nothing.
+    // played - and it must change nothing.
     const refused = await c.call("/api/quiz/start", {
       method: "POST",
       body: { ...body, phone: "9862000002" },
@@ -1503,7 +1503,7 @@ try {
 
   await test("after finishing, brand new details are a brand new student", async () => {
     // Neither the number nor the address is on file, so there is nobody to
-    // recognise and nothing to refuse — even though the browser still carries
+    // recognise and nothing to refuse - even though the browser still carries
     // the session cookie from the run they just finished.
     const c = client("refuse-fresh");
     const body = { slug: "again-2026", name: "Fresh Start", phone: "9862000003", email: "fresh@x.com" };
@@ -1526,7 +1526,7 @@ try {
 
   await test("the Unfinished count is people, and always matches the list beside it", async () => {
     // By now this event holds students who started several times and one who
-    // started several times and then finished — the shape that made the tile
+    // started several times and then finished - the shape that made the tile
     // and the list disagree: the tile counted open attempts, the list counted
     // people, so a tester who pressed Continue five times and then finished
     // saw "5 unfinished" above an empty list.
@@ -1553,7 +1553,7 @@ try {
     );
 
     // And the old number is still reported, still counting attempts rather than
-    // people — which is why it is no longer what the tile shows.
+    // people - which is why it is no longer what the tile shows.
     assert(
       data.summary.in_progress >= data.summary.not_finished,
       `open attempts (${data.summary.in_progress}) should not be under people (${data.summary.not_finished})`,
@@ -1704,9 +1704,14 @@ try {
     // The lead-in is bought on top of the limit, not taken out of it: a minute
     // of answering still lasts a minute, and the deadline is that much later.
     const left = new Date(data.organization.closes_at).getTime() - Date.now();
+    /* The point of the assertion is that the lead-in was added on top of the
+       limit, so the floor is what matters: without it the deadline could never
+       be more than the 60s round. The ceiling carries a second of slack because
+       the deadline is stamped in one process and measured in another, and
+       pinning it to exactly 65_000 made this fail about one run in three. */
     assert(
-      left > 60_000 && left <= 65_000,
-      `deadline is ${Math.round(left / 1000)}s away, expected ~65 (60s round + 5s lead-in)`,
+      left > 61_000 && left <= 66_000,
+      `deadline is ${left}ms away, expected about 65000 (60s round + 5s lead-in)`,
     );
 
     // The phone is told how long until the questions appear, as a duration, so
@@ -1789,7 +1794,7 @@ try {
     const pub = await client("round-pub2").call("/api/public/organization?code=round-2026");
     eq(pub.data.organization.isOpen, false, "the student-facing page still says open");
 
-    // Nothing rewrote the switch — the deadline alone closed it.
+    // Nothing rewrote the switch - the deadline alone closed it.
     const row = await emu.db.query(`SELECT is_open FROM organizations WHERE slug = 'round-2026'`);
     eq(row.rows[0].is_open, true, "is_open was flipped; the deadline should be enough");
     return "closed by its deadline, with is_open left alone";
@@ -2367,7 +2372,7 @@ try {
     // The host must not be left waiting on somebody who is never coming back.
     // The set runs one minute, so an attempt older than that cannot be live.
     // An earlier test left this set untimed, and an untimed set can only judge
-    // "still answering" loosely — an hour. Put the minute back, so the rule
+    // "still answering" loosely - an hour. Put the minute back, so the rule
     // being checked is the one that reads the set's own limit.
     await admin.call(`/api/admin/sets/${roundSetId}`, {
       method: "PATCH",
@@ -2454,7 +2459,7 @@ try {
     const { status, data } = await admin.call(`/api/admin/organizations/${roundOrgId}/live`);
     eq(status, 200, "status");
 
-    // Exactly these keys — anything heavier has crept in if this fails.
+    // Exactly these keys - anything heavier has crept in if this fails.
     eq(
       Object.keys(data).sort(),
       ["ok", "organization", "summary", "timeLimitSeconds", "top"],
@@ -2666,8 +2671,8 @@ try {
 
   section("Questions with several correct answers");
 
-  // A separate set and event, so the assertions about "demo" above — 15
-  // questions, a winning score of 16 — stay exactly as they were.
+  // A separate set and event, so the assertions about "demo" above - 15
+  // questions, a winning score of 16 - stay exactly as they were.
   let multiSetId, multiOrgId;
   await test("a set of multi-answer questions can be built", async () => {
     const set = await admin.call("/api/admin/sets", {
@@ -2869,7 +2874,7 @@ try {
     // Only the genuinely single-answer question (1 point) can be right.
     eq(res.data.score, 1, "score");
     eq(res.data.correctCount, 1, "correctCount");
-    return "1 of 6 — partial ticks earn nothing";
+    return "1 of 6 - partial ticks earn nothing";
   });
 
   await test("ticking every option cannot win a multi-answer question", async () => {
@@ -2888,7 +2893,7 @@ try {
       body: { attemptId: data.attemptId, answers, elapsedMs: 3000 },
     });
     eq(res.data.score, 0, "score");
-    return "0 of 6 — no reward for covering every option";
+    return "0 of 6 - no reward for covering every option";
   });
 
   await test("the answer sheet reads every chosen and correct option", async () => {
@@ -3103,7 +3108,7 @@ try {
     eq(status, 200, "status");
   });
 
-  section("Admin — people and roles");
+  section("Admin - people and roles");
 
   await test("the people database is searchable", async () => {
     const all = await admin.call("/api/admin/participants");
@@ -3250,7 +3255,7 @@ try {
     return "old password rejected, new one accepted";
   });
 
-  section("Admin — the per-organization staff URL");
+  section("Admin - the per-organization staff URL");
 
   await test("/s/<code>/admin shows a sign-in form to an anonymous visitor", async () => {
     const c = client("anon-staff");
@@ -3270,7 +3275,7 @@ try {
     return "results view rendered on the organization URL";
   });
 
-  section("Admin — clearing and deleting");
+  section("Admin - clearing and deleting");
 
   await test("clearing entries needs the code typed correctly", async () => {
     const { status, data } = await admin.call(
@@ -3317,7 +3322,7 @@ try {
     return `deleted, ${data.removed} entries with it`;
   });
 
-  section("Admin — nothing is really deleted");
+  section("Admin - nothing is really deleted");
 
   await test("a deleted event is still in the database, flagged", async () => {
     const { status, data } = await admin.call("/api/admin/deleted");
@@ -3526,7 +3531,7 @@ try {
     });
     eq(second.status, 200, "the freed mobile number was refused");
 
-    // The point of this change: one row, revived — not a second row with a
+    // The point of this change: one row, revived - not a second row with a
     // second copy of their email address.
     const all = await admin.call("/api/admin/participants?q=9855000001&deleted=1");
     eq(all.data.participants.length, 1, "registering again created a duplicate row");
@@ -3564,7 +3569,7 @@ try {
     return `${rows.length} rows kept, ${named} attributed`;
   });
 
-  section("Admin — audit trail");
+  section("Admin - audit trail");
 
   await test("the activity log recorded what happened", async () => {
     const { status, data } = await admin.call("/api/admin/audit?limit=200");
@@ -3609,7 +3614,7 @@ try {
     const token = c.jar.get("gg_admin");
     // Change the first character of the signature. The trailing base64url
     // character only carries a few significant bits, so flipping *that* can
-    // decode to the same signature — the first one always differs.
+    // decode to the same signature - the first one always differs.
     const [header, payload, signature] = token.split(".");
     const flipped = (signature[0] === "A" ? "B" : "A") + signature.slice(1);
     c.jar.set("gg_admin", `${header}.${payload}.${flipped}`);

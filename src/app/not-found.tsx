@@ -13,7 +13,7 @@ export default function NotFound() {
             Nothing here
           </h1>
           <p className="mb-5 text-[15.5px] leading-relaxed text-body">
-            That link does not match an event. Codes are short and easy to mistype — worth checking
+            That link does not match an event. Codes are short and easy to mistype - worth checking
             the spelling.
           </p>
           <Link href="/" className="btn-primary">

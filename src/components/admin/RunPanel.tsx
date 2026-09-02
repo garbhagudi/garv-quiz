@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Notice, Empty, MEDALS } from "./Ui";
-import { QrCode, downloadQrPng, isAbsolute } from "./QrCode";
+import { QrCode, downloadQrPng, isAbsolute } from "@/components/QrCode";
 import type { Organization } from "@/lib/types";
 
 /* -------------------------------- shapes --------------------------------- */
@@ -37,7 +37,7 @@ export function fmtLeft(ms: number): string {
  * watch the clock, watch the room finish, close it by hand if you need to.
  *
  * Deliberately narrow. Everything here answers one of four questions a host
- * actually asks while standing in front of a room — how long is left, how many
+ * actually asks while standing in front of a room - how long is left, how many
  * have finished, how many are still going, and who is winning. The full results
  * table, the per-question analysis and the settings are all one tab away and
  * none of them belong on this one.
@@ -74,7 +74,7 @@ export function RunPanel({
   onOpenDoors: () => void;
   onClose: () => void;
   shareUrl: string;
-  /** Optional way out — the tab uses it to point at the standalone screen. */
+  /** Optional way out - the tab uses it to point at the standalone screen. */
   headerLink?: ReactNode;
 }) {
   const waiting = summary.answering;
@@ -126,7 +126,7 @@ export function RunPanel({
                 : "No time limit"
             : ended
               ? "0:00"
-              : "—"}
+              : "-"}
         </div>
 
         {live && leftMs === null ? (
@@ -159,7 +159,7 @@ export function RunPanel({
 
         {showOpenDoors ? (
           <p className="mt-2.5 text-[12.5px] text-muted">
-            Open the waiting room first to let the room register while you talk — then Start round
+            Open the waiting room first to let the room register while you talk - then Start round
             is just the clock.
           </p>
         ) : null}
@@ -183,7 +183,7 @@ export function RunPanel({
       {ended || (!live && summary.completed > 0) ? (
         <Notice tone={waiting ? "warn" : "good"}>
           {waiting
-            ? `The round is over, but ${waiting} ${waiting === 1 ? "student is" : "students are"} still answering — their own clock is still running, and their answers will still count. Wait for this to reach zero before announcing anything.`
+            ? `The round is over, but ${waiting} ${waiting === 1 ? "student is" : "students are"} still answering - their own clock is still running, and their answers will still count. Wait for this to reach zero before announcing anything.`
             : `Everybody who started has submitted. ${summary.completed} ${summary.completed === 1 ? "result is" : "results are"} in.`}
         </Notice>
       ) : null}
@@ -299,7 +299,7 @@ function JoinBlock({ shareUrl }: { shareUrl: string }) {
   );
 }
 
-/** A big number for the run screen — larger and plainer than the desk tiles. */
+/** A big number for the run screen - larger and plainer than the desk tiles. */
 const RunTile = ({
   value,
   label,

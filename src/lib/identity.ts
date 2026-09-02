@@ -1,7 +1,7 @@
 /**
  * Deciding whether two registrations are the same student.
  *
- * The mobile number is the identity — one row per number per event, for ever.
+ * The mobile number is the identity - one row per number per event, for ever.
  * The email address is unique per event as well, which leaves one genuinely
  * ambiguous case: the same address arriving with a different number. That is
  * either a student who mistyped their number and is now locked out of their own

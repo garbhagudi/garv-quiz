@@ -19,7 +19,7 @@ import qrcode from "qrcode-generator";
 const QUIET = 4;
 const INK = "#241539";
 
-/** True only once the caller has a real link — see the note in QrCode. */
+/** True only once the caller has a real link - see the note in QrCode. */
 export const isAbsolute = (value: string) => /^https?:\/\//i.test(value);
 
 /** One source of truth for the module grid, shared by the SVG and the PNG. */
@@ -89,7 +89,7 @@ export function downloadQrPng(value: string, fileName: string, caption = value) 
 
   const { count, side, isDark } = matrix(value);
 
-  const scale = 24; // module size in pixels — a 29-module code lands near 900px
+  const scale = 24; // module size in pixels - a 29-module code lands near 900px
   const qrPx = side * scale;
   const pad = scale * 2;
   const captionPx = Math.round(scale * 1.6);

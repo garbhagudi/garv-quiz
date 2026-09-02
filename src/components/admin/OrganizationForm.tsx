@@ -48,7 +48,7 @@ export const blankDraft = (defaultSetId: number | null): OrganizationDraft => ({
   notes: "",
   questionSetId: defaultSetId,
   // Closed until somebody presses Start round. The form sends this field on
-  // every create, so it — not the schema default — is what a new event gets.
+  // every create, so it - not the schema default - is what a new event gets.
   isOpen: false,
   questionCount: null,
   shuffleQuestions: false,
@@ -218,7 +218,7 @@ export function OrganizationForm({
             disabled={readOnly}
             onChange={(e) => set("questionSetId", e.target.value ? Number(e.target.value) : null)}
           >
-            <option value="">— choose a set —</option>
+            <option value="">- choose a set -</option>
             {sets.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} ({s.active_count} question{s.active_count === 1 ? "" : "s"})

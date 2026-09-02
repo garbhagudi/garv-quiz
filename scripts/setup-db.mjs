@@ -47,7 +47,7 @@ const sql = neon(url);
 
 /**
  * Splits the schema file into single statements. It contains no semicolons
- * inside literals — including inside the dollar-quoted function body — so a
+ * inside literals - including inside the dollar-quoted function body - so a
  * plain split is enough, and every statement is independently idempotent.
  */
 function statements(text) {
@@ -87,7 +87,7 @@ const SEED_QUESTIONS = [
      "Oocyte → Implantation → Fertilisation → Embryo"], 1],
   ["In ICSI, approximately how many sperm are injected directly into the oocyte?",
     ["100", "10", "1,000", "One selected sperm"], 3],
-  ["Which developmental stage is typically reached around Day 5–6 after fertilisation?",
+  ["Which developmental stage is typically reached around Day 5-6 after fertilisation?",
     ["Zygote", "2-cell embryo", "Morula", "Blastocyst"], 3],
   ["Why is an embryo stored in liquid nitrogen during vitrification?",
     ["To slowly freeze it", "To increase its metabolism",
@@ -117,7 +117,7 @@ const SEED_QUESTIONS = [
     ["Age has no effect once IVF is used", "IVF completely reverses reproductive ageing",
      "Oocyte age remains an important determinant of reproductive potential",
      "Sperm age is the only important factor"], 2],
-  ["Final question — you have an oocyte, one sperm and an embryologist. What is the embryologist's job?",
+  ["Final question - you have an oocyte, one sperm and an embryologist. What is the embryologist's job?",
     ["Just put them together", "Just freeze them",
      "Control, monitor and optimise the laboratory environment and procedures that support fertilisation and embryo development",
      "Choose whether the baby will be a boy or girl"], 2],
@@ -138,7 +138,7 @@ async function migrateSchoolsToOrganizations() {
     ) AS exists`;
   if (!hasOld) return;
 
-  console.log('\n  Found the older "schools" tables — renaming to "organizations"…');
+  console.log('\n  Found the older "schools" tables - renaming to "organizations"…');
 
   const steps = [
     `ALTER TABLE schools RENAME TO organizations`,
@@ -226,7 +226,7 @@ async function main() {
           `${clashes.length === 1 ? "is" : "are"} used more than once.\n`,
       );
       for (const c of clashes) {
-        console.error(`    ${c.email}  —  ${c.event} (${c.slug}), ${c.n} students`);
+        console.error(`    ${c.email}  -  ${c.event} (${c.slug}), ${c.n} students`);
         console.error(`      ${c.who}`);
       }
       console.error(
@@ -268,7 +268,7 @@ async function main() {
   } else {
     const [set] = await sql`SELECT id FROM question_sets ORDER BY id ASC LIMIT 1`;
     setId = set.id;
-    console.log(`\n  Question sets already exist (${setCount}) — left untouched`);
+    console.log(`\n  Question sets already exist (${setCount}) - left untouched`);
   }
 
   /* ------------------------------ owner login ---------------------------- */
@@ -291,7 +291,7 @@ async function main() {
     console.log(`\n  Created owner account: ${email}`);
     console.log(`  Sign in at /admin/login, then change the password under Team.`);
   } else {
-    console.log(`\n  ${adminCount} admin account(s) already exist — left untouched`);
+    console.log(`\n  ${adminCount} admin account(s) already exist - left untouched`);
   }
 
   /* ------------------------------ demo event ----------------------------- */

@@ -7,8 +7,8 @@ import { sql } from "./db";
  * mistyped confirmation on the night of an event is an inconvenience rather
  * than a loss.
  *
- * Deleting a parent marks its children too — an event's participants, a
- * participant's attempts — because a student whose event is gone should not
+ * Deleting a parent marks its children too - an event's participants, a
+ * participant's attempts - because a student whose event is gone should not
  * keep turning up in a cross-event people search.
  */
 
@@ -214,7 +214,7 @@ export async function restoreBlockedReason(
   if (kind === "participant") {
     // Their mobile number needs no check: it is unique across every row,
     // deleted or not, so no live row can be holding it. Their email address is
-    // a different matter — that rule covers live rows only, so somebody else
+    // a different matter - that rule covers live rows only, so somebody else
     // may have registered with it while this student sat deleted.
     const rows = (await sql.query(
       `SELECT organization_id, email FROM participants

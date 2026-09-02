@@ -17,7 +17,7 @@ const setSchema = z.object({
 /** Minutes as the form sends them, to the seconds the column holds. */
 const toSeconds = (m: number | null) => (m === null ? null : m * 60);
 
-/** GET /api/admin/sets — question sets with how many questions and events use each. */
+/** GET /api/admin/sets - question sets with how many questions and events use each. */
 export const GET = route(async (req: Request) => {
   await requireAdmin();
   const includeDeleted = new URL(req.url).searchParams.get("deleted") === "1";
@@ -37,7 +37,7 @@ export const GET = route(async (req: Request) => {
   return ok({ sets });
 });
 
-/** POST /api/admin/sets — create a set, optionally copying an existing one. */
+/** POST /api/admin/sets - create a set, optionally copying an existing one. */
 export const POST = route(async (req: Request) => {
   const admin = await requireWriter();
   const body = await readJson(req);

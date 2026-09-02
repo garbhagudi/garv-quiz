@@ -1,5 +1,5 @@
 /**
- * Checks the pure logic that decides scores and identities — the parts where a
+ * Checks the pure logic that decides scores and identities - the parts where a
  * mistake would quietly award the wrong winner.
  *
  *   node --experimental-strip-types scripts/verify-logic.ts
@@ -363,7 +363,7 @@ check("the answer key never reaches the phone, in either shape", () => {
     [true, true, false],
     "multi flag",
   );
-  // The count is deliberately withheld — knowing "pick exactly 3" is a big hint.
+  // The count is deliberately withheld - knowing "pick exactly 3" is a big hint.
   if (json.includes('"count"')) throw new Error("how many answers to pick leaked");
 });
 
@@ -800,14 +800,14 @@ check("the countdown reaches zero and stops there", () => {
   eq(closesInMs(round, T0), 10_000);
   eq(closesInMs(round, T0 + 9_000), 1_000);
   eq(closesInMs(round, T0 + 10_000), 0, "on the deadline");
-  eq(closesInMs(round, T0 + 999_999), 0, "long after — never negative");
+  eq(closesInMs(round, T0 + 999_999), 0, "long after - never negative");
 });
 
 check("closing by hand beats a deadline that has not arrived", () => {
   // The host pressed Close with four minutes still on the clock.
   const round = { is_open: false, closes_at: at(240_000) };
   eq(acceptingEntries(round, T0), false, "accepting");
-  eq(roundEnded(round, T0), false, "not 'round over' — somebody closed it");
+  eq(roundEnded(round, T0), false, "not 'round over' - somebody closed it");
 });
 
 check("a round that ran out is named apart from one closed by hand", () => {
@@ -870,7 +870,7 @@ check("formatMs reads naturally at each scale", () => {
 /* -------------------------------- slugs ---------------------------------- */
 
 check("slugify makes typeable codes", () => {
-  eq(slugify("St. Xavier's College — Bengaluru 2026"), "st-xaviers-college-bengaluru-2026");
+  eq(slugify("St. Xavier's College - Bengaluru 2026"), "st-xaviers-college-bengaluru-2026");
   eq(slugify("  Spaces   Everywhere  "), "spaces-everywhere");
   eq(slugify("Café Déjà Vu"), "cafe-deja-vu");
   eq(slugify("!!!"), "");

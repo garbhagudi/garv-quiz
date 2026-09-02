@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }> };
 
 /**
- * /organizations/<code>/dashboard — the short URL, for typing from memory.
+ * /organizations/<code>/dashboard - the short URL, for typing from memory.
  *
  * A redirect rather than a second copy of the screen: the dashboard lives under
  * /admin, where the middleware bounces anonymous visitors to sign-in before any

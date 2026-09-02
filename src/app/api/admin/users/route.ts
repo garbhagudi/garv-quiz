@@ -6,7 +6,7 @@ import { adminUserSchema } from "@/lib/validate";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/admin/users — the staff list. Password hashes never leave the server. */
+/** GET /api/admin/users - the staff list. Password hashes never leave the server. */
 export const GET = route(async (req: Request) => {
   await requireAdmin();
   const includeDeleted = new URL(req.url).searchParams.get("deleted") === "1";
@@ -20,7 +20,7 @@ export const GET = route(async (req: Request) => {
   return ok({ users });
 });
 
-/** POST /api/admin/users — invite a colleague. Owner only. */
+/** POST /api/admin/users - invite a colleague. Owner only. */
 export const POST = route(async (req: Request) => {
   const admin = await requireOwner();
   const v = adminUserSchema.parse(await readJson(req));

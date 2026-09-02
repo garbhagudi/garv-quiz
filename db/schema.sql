@@ -1,5 +1,5 @@
 -- ===========================================================================
---  GarbhaGudi Quiz Platform — Neon Postgres schema
+--  GarbhaGudi Quiz Platform - Neon Postgres schema
 --  Safe to run more than once: every statement is IF NOT EXISTS / idempotent.
 --  Run it with:  npm run db:setup
 -- ===========================================================================
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS question_sets (
 
 -- ---------------------------------------------------------------------------
 -- `options` is a JSON array of strings; `correct_index` points into it (0-based).
--- The correct answer NEVER leaves the server — the API strips it before sending
+-- The correct answer NEVER leaves the server - the API strips it before sending
 -- questions to a phone, and scoring happens here.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS questions (
@@ -119,7 +119,7 @@ CREATE INDEX IF NOT EXISTS participants_organization_idx ON participants (organi
 -- ---------------------------------------------------------------------------
 -- One row per run through the quiz. `served` records exactly which questions
 -- were asked and in which option order, so the submission can be scored
--- against what the student actually saw — and so a tampered payload can't win.
+-- against what the student actually saw - and so a tampered payload can't win.
 --
 -- `public_id` is the unguessable handle used in result URLs.
 -- ---------------------------------------------------------------------------
@@ -296,8 +296,8 @@ CREATE INDEX IF NOT EXISTS attempts_live_board_idx
 --                      (stored in `media` below) or a full https:// link.
 --
 --  A question whose correct_indexes is an empty array falls back to
---  correct_index when it is marked, so a row written by hand-rolled SQL — the
---  seeds and the verify scripts do exactly that — still behaves correctly.
+--  correct_index when it is marked, so a row written by hand-rolled SQL - the
+--  seeds and the verify scripts do exactly that - still behaves correctly.
 -- ===========================================================================
 
 -- ===========================================================================
@@ -376,7 +376,7 @@ UPDATE questions
 -- The answer key has to stay pointing at options that exist, which needs more
 -- than a plain expression: the indexes must be whole numbers, in range, and
 -- none repeated. A CHECK cannot hold a subquery, so the test lives in an
--- IMMUTABLE function instead — which a CHECK is allowed to call.
+-- IMMUTABLE function instead - which a CHECK is allowed to call.
 --
 -- Returns false rather than raising for every shape of bad input, so a mistake
 -- surfaces as "violates check constraint", not as a cast error.
@@ -443,7 +443,7 @@ CREATE INDEX IF NOT EXISTS media_created_idx ON media (created_at DESC);
 --  duration everywhere it is used and nobody has to remember to set it when
 --  they create the event.
 --
---  NULL means no limit, which is what every existing set gets — so this changes
+--  NULL means no limit, which is what every existing set gets - so this changes
 --  nothing until somebody fills it in. Seconds rather than minutes because the
 --  client counts down in seconds; the admin panel asks for minutes and converts.
 -- ===========================================================================
@@ -463,7 +463,7 @@ ALTER TABLE question_sets ADD CONSTRAINT question_sets_time_limit_sane CHECK (
 --  round was started with: press Start and the event opens for as long as the
 --  question set's time limit says, then stops accepting entries on its own.
 --
---  NULL means no deadline — the event stays open until somebody closes it,
+--  NULL means no deadline - the event stays open until somebody closes it,
 --  which is how every event behaved before this and how an untimed set still
 --  behaves. An event is accepting entries when `is_open` is true AND the
 --  deadline is either absent or still ahead; see src/lib/eventWindow.ts, which

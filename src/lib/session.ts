@@ -70,7 +70,7 @@ export async function clearAdminSession() {
 
 /* Students are not signed in at all. There was a 30-day `gg_participant`
    cookie here once, carrying a participant id so somebody could return to their
-   own dashboard. The dashboard is gone, so the cookie is too — a quiz that
+   own dashboard. The dashboard is gone, so the cookie is too - a quiz that
    shows nothing back has no reason to leave an identity on a phone. */
 
 /** A viewer may read everything but change nothing. */

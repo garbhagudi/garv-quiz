@@ -34,7 +34,7 @@ function sniff(b: Uint8Array): string | null {
  *
  * Stores one picture and hands back the path to read it at. Pictures live in
  * the database because the app runs on serverless functions with no writable
- * disk — see the `media` table in db/schema.sql.
+ * disk - see the `media` table in db/schema.sql.
  */
 export const POST = route(async (req: Request) => {
   const admin = await requireWriter();

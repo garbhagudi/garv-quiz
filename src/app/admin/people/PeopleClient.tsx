@@ -172,7 +172,7 @@ export function PeopleClient({ canWrite }: { canWrite: boolean }) {
                           {p.email}
                         </a>
                       ) : (
-                        "—"
+                        "-"
                       )}
                     </td>
                     <td className="text-[13px]">

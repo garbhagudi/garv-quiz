@@ -4,7 +4,10 @@ import "./globals.css";
 
 const display = Lexend({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  // 800 is here for the greeting on the student screens, where the name is set
+  // against a light "You are in," - without it the browser synthesises a fake
+  // bold from the 700 and the contrast is muddy.
+  weight: ["300", "400", "500", "600", "700", "800"],
   variable: "--font-display",
   display: "swap",
 });

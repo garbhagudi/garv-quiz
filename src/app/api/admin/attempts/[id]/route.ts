@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** GET /api/admin/attempts/:id — one student's full answer sheet. */
+/** GET /api/admin/attempts/:id - one student's full answer sheet. */
 export const GET = route(async (_req: Request, ctx: Ctx) => {
   await requireAdmin();
   const id = Number((await ctx.params).id);
@@ -33,7 +33,7 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
   return ok({ attempt, answers });
 });
 
-/** DELETE /api/admin/attempts/:id — remove a test run or a duplicate entry. */
+/** DELETE /api/admin/attempts/:id - remove a test run or a duplicate entry. */
 export const DELETE = route(async (_req: Request, ctx: Ctx) => {
   const admin = await requireWriter();
   const id = Number((await ctx.params).id);

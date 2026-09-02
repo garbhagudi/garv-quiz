@@ -173,7 +173,7 @@ export function OrganizationResults({
    * The run screen is watched rather than read, so it refreshes itself without
    * anybody ticking a box. It asks the `/live` route, not the full detail one:
    * five numbers and five names instead of the whole results table, the
-   * question analysis and the did-not-finish list — and one database round trip
+   * question analysis and the did-not-finish list - and one database round trip
    * instead of five.
    *
    * Paced by `refreshMs`, shared with the standalone screen: quickly only while
@@ -240,7 +240,7 @@ export function OrganizationResults({
 
   /**
    * Opens the entries and, when the question set is timed, gives the round that
-   * long to run. Sent as its own action so the server works out the deadline —
+   * long to run. Sent as its own action so the server works out the deadline -
    * a room's timing is not something to hand to a browser clock.
    */
   async function startRound() {
@@ -254,7 +254,7 @@ export function OrganizationResults({
       setNotice(
         left === null
           ? "Entries are open. This set has no time limit, so close them yourself when you are done."
-          : `Round started — entries close in ${Math.round(left / 60000)} minutes.`,
+          : `Round started - entries close in ${Math.round(left / 60000)} minutes.`,
       );
       void load();
     } catch (e) {
@@ -262,7 +262,7 @@ export function OrganizationResults({
     }
   }
 
-  /** Doors open, clock not running — the room can register and wait. */
+  /** Doors open, clock not running - the room can register and wait. */
   async function openDoors() {
     try {
       await api(`/api/admin/organizations/${organizationId}`, {
@@ -512,10 +512,10 @@ export function OrganizationResults({
                             {r.email}
                           </a>
                         ) : (
-                          "—"
+                          "-"
                         )}
                       </td>
-                      {s.collect_class ? <td className="text-[13px]">{r.class_or_year || "—"}</td> : null}
+                      {s.collect_class ? <td className="text-[13px]">{r.class_or_year || "-"}</td> : null}
                       <td className="text-right font-display font-bold tabular-nums text-plum">
                         {r.score}
                         <span className="text-[12px] font-normal text-muted">/{r.max_score}</span>
@@ -655,9 +655,9 @@ export function OrganizationResults({
                       <tr key={p.id}>
                         <td className="font-semibold">{p.name}</td>
                         <td className="tabular-nums">{p.phone}</td>
-                        <td className="max-w-[220px] truncate text-[13px]">{p.email || "—"}</td>
+                        <td className="max-w-[220px] truncate text-[13px]">{p.email || "-"}</td>
                         {s.collect_class ? (
-                          <td className="text-[13px]">{p.class_or_year || "—"}</td>
+                          <td className="text-[13px]">{p.class_or_year || "-"}</td>
                         ) : null}
                         <td className="whitespace-nowrap">
                           {p.attempts === 0 ? (
@@ -787,7 +787,7 @@ function AttemptModal({ attempt, onClose }: { attempt: Result; onClose: () => vo
   }, [attempt.id]);
 
   return (
-    <Modal title={`${attempt.name} — ${attempt.score}/${attempt.max_score}`} onClose={onClose} wide>
+    <Modal title={`${attempt.name} - ${attempt.score}/${attempt.max_score}`} onClose={onClose} wide>
       <p className="mb-4 text-[13.5px] text-muted">
         {attempt.phone}
         {attempt.email ? ` · ${attempt.email}` : ""} · rank {attempt.rank} ·{" "}

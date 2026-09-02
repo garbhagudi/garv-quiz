@@ -36,7 +36,7 @@ export function route<A extends unknown[]>(
     try {
       return await handler(...args);
     } catch (e) {
-      // A misconfigured environment is nobody's typo — report it in full, or
+      // A misconfigured environment is nobody's typo - report it in full, or
       // whoever has to fix it gets "something went wrong" and no lead to follow.
       if (e instanceof ConfigError) {
         console.error("[config]", e.message);

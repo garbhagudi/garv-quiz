@@ -27,7 +27,7 @@ export const emailField = z
   .refine((s) => s.length <= 120, "That email address is too long.");
 
 /**
- * Turns "St. Xavier's College — Bengaluru 2026" into "st-xaviers-college-bengaluru-2026".
+ * Turns "St. Xavier's College - Bengaluru 2026" into "st-xaviers-college-bengaluru-2026".
  * Kept short and URL-safe because students type it by hand.
  */
 export function slugify(raw: string): string {
@@ -157,10 +157,10 @@ export const questionSchema = z
       .string()
       .transform(normalizeQuestionText)
       .refine((s) => s.length >= 5, "Write the question.")
-      .refine((s) => s.length <= 2000, "That question is too long — keep it under 2000 characters.")
+      .refine((s) => s.length <= 2000, "That question is too long - keep it under 2000 characters.")
       .refine(
         (s) => s.split("\n").length <= 40,
-        "That is a lot of lines for one question — keep it under 40.",
+        "That is a lot of lines for one question - keep it under 40.",
       ),
     options: optionsField,
     correctIndex: z.coerce.number().int().min(0).max(MAX_OPTIONS * 10).optional(),
@@ -176,7 +176,7 @@ export const questionSchema = z
     isActive: z.boolean().optional().default(true),
   })
   .refine((v) => answerKeyOf(v).length > 0, {
-    message: "Tick the option — or options — that are correct.",
+    message: "Tick the option - or options - that are correct.",
     path: ["correctIndexes"],
   })
   .refine((v) => answerKeyOf(v).every((i) => i < v.options.length), {
@@ -184,7 +184,7 @@ export const questionSchema = z
     path: ["correctIndexes"],
   })
   .refine((v) => answerKeyOf(v).length < v.options.length, {
-    message: "Every option cannot be correct — there would be nothing to work out.",
+    message: "Every option cannot be correct - there would be nothing to work out.",
     path: ["correctIndexes"],
   });
 
@@ -214,7 +214,7 @@ export const organizationSchema = z.object({
 
 /**
  * Update form of the above. Every field is optional with no default, so a
- * caller that sends only `{ isOpen: false }` changes only that — the route
+ * caller that sends only `{ isOpen: false }` changes only that - the route
  * merges the rest from the stored row rather than resetting it.
  */
 export const organizationPatchSchema = z.object({

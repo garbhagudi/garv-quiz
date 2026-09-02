@@ -50,7 +50,7 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
 /**
  * DELETE /api/admin/questions/:id
  *
- * Past answers keep their text snapshot, so old reports still read correctly —
+ * Past answers keep their text snapshot, so old reports still read correctly -
  * only the reusable question goes away.
  */
 export const DELETE = route(async (_req: Request, ctx: Ctx) => {

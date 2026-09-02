@@ -18,7 +18,7 @@ export function BrandBar() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/garv-2026-logo.webp"
-        alt="GarbhaGudi · GARV 2026 — The art of ART"
+        alt="GarbhaGudi · GARV 2026 - The art of ART"
         width={715}
         height={330}
         className="h-auto w-full max-w-[248px] sm:max-w-[288px]"
@@ -32,7 +32,7 @@ export function BrandBar() {
  * a student ever sees lives inside this, at a phone-first 560px maximum.
  *
  * The eyebrow and the footer sit on the page rather than in the card, so they
- * are inked for a light ground — crimson for the eyebrow, the muted plum-grey
+ * are inked for a light ground - crimson for the eyebrow, the muted plum-grey
  * for the small print. Anything added out here needs the same treatment.
  */
 export function Stage({

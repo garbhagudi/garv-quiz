@@ -5,7 +5,7 @@ import { organizationSchema } from "@/lib/validate";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/admin/organizations — every event, with live counts for the list view. */
+/** GET /api/admin/organizations - every event, with live counts for the list view. */
 export const GET = route(async (req: Request) => {
   await requireAdmin();
   const params = new URL(req.url).searchParams;
@@ -13,7 +13,7 @@ export const GET = route(async (req: Request) => {
   // and restored; nothing else ever sees them.
   const includeDeleted = params.get("deleted") === "1";
   const q = (params.get("q") ?? "").trim();
-  // An empty search becomes '%%', which every non-null name matches — so the
+  // An empty search becomes '%%', which every non-null name matches - so the
   // same query serves both "list all" and "search".
   const like = `%${q}%`;
 
@@ -44,7 +44,7 @@ export const GET = route(async (req: Request) => {
   return ok({ organizations });
 });
 
-/** POST /api/admin/organizations — create an event; the slug becomes the student code. */
+/** POST /api/admin/organizations - create an event; the slug becomes the student code. */
 export const POST = route(async (req: Request) => {
   const admin = await requireWriter();
   const v = organizationSchema.parse(await readJson(req));

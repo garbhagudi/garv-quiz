@@ -114,19 +114,19 @@
   /* The blush ground the student-facing pages sit on.
      Flat rather than a gradient: at this lightness a gradient reads as a smudge
      rather than as depth. Because it is a light ground, everything placed
-     directly on it is inked dark — see BrandBar and Stage in
+     directly on it is inked dark - see BrandBar and Stage in
      src/components/Stage.tsx. */
   .surface-stage {
     @apply min-h-screen bg-ground;
   }
 
-  /* The admin workspace is a light room — it gets read all day, not for 5 minutes. */
+  /* The admin workspace is a light room - it gets read all day, not for 5 minutes. */
   .surface-desk {
     @apply min-h-screen bg-desk;
   }
 
   /* On the blush ground the cream is only a hair darker than the page, so the
-     card carries a hairline in the brand colour as well as its shadow —
+     card carries a hairline in the brand colour as well as its shadow -
      without it the card has no edge at all. */
   .card {
     @apply rounded-xl3 border border-brand/15 bg-cream p-6 shadow-card sm:p-7;

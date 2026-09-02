@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, apiRetry, errText } from "@/lib/client";
 import { Loading, PrizeNote, Progress } from "@/components/Stage";
 import { QuestionText } from "@/components/QuestionText";
+import { QrCode } from "@/components/QrCode";
 
 /* -------------------------------- types ---------------------------------- */
 
@@ -113,7 +115,7 @@ const fmtTaken = (ms: number) => {
   return t < 60 ? `${t}s` : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
 };
 
-/** m:ss, for a countdown — rounded up so it only shows 0:00 when time is up. */
+/** m:ss, for a countdown - rounded up so it only shows 0:00 when time is up. */
 const fmtClock = (ms: number) => {
   const t = Math.max(0, Math.ceil(ms / 1000));
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
@@ -216,7 +218,7 @@ export function QuizFlow(props: QuizFlowProps) {
 
   /**
    * The second half of registering: the round is on, so open the attempt and
-   * take the questions. Called when the lead-in runs out, never before — the
+   * take the questions. Called when the lead-in runs out, never before - the
    * server stamps `started_at` here, and that is what the clock is read from at
    * both ends, so it has to be the moment the questions actually appear.
    */
@@ -253,7 +255,7 @@ export function QuizFlow(props: QuizFlowProps) {
    * questions appear.
    *
    * `beginsInMs` is a duration measured on the server, so every phone counts
-   * down to the same instant however late it happened to ask — one that only
+   * down to the same instant however late it happened to ask - one that only
    * hears about the round three seconds in shows a shorter countdown rather
    * than starting three seconds behind the room.
    */
@@ -274,7 +276,7 @@ export function QuizFlow(props: QuizFlowProps) {
             setBeginsAt(Date.now() + o.beginsInMs);
             setBeginsInMs(o.beginsInMs);
           } else if (!o.notStarted && o.isOpen && o.beginsInMs === null) {
-            // Untimed, and now open — nothing to count down to.
+            // Untimed, and now open - nothing to count down to.
             void enter();
             return;
           }
@@ -337,7 +339,7 @@ export function QuizFlow(props: QuizFlowProps) {
 
   /**
    * Leaving the rules screen is where the run really begins, so the wall clock
-   * starts here rather than at registration — otherwise a student who reads the
+   * starts here rather than at registration - otherwise a student who reads the
    * rules carefully would show a worse total time for it. Per-question timing
    * is unaffected either way: it starts when a question renders.
    */
@@ -351,7 +353,7 @@ export function QuizFlow(props: QuizFlowProps) {
    * from the deadline each tick so a phone that slept catches up rather than
    * losing the time it was asleep for.
    *
-   * At zero the quiz submits itself with whatever has been answered — a student
+   * At zero the quiz submits itself with whatever has been answered - a student
    * who runs out still gets a score for what they did.
    */
   useEffect(() => {
@@ -411,6 +413,7 @@ export function QuizFlow(props: QuizFlowProps) {
         timeLimitSeconds={timeLimitSeconds}
         beginsInMs={beginsInMs}
         prizeNote={props.prizeNote}
+        slug={props.slug}
       />
     );
 
@@ -422,6 +425,7 @@ export function QuizFlow(props: QuizFlowProps) {
         timeLimitSeconds={timeLimitSeconds}
         prizeNote={props.prizeNote}
         onBegin={begin}
+        slug={props.slug}
       />
     );
 
@@ -583,7 +587,7 @@ function RegisterForm({
         {error}
       </p>
 
-      {/* Not "Start the quiz" — this only registers you and opens the rules.
+      {/* Not "Start the quiz" - this only registers you and opens the rules.
           The quiz itself starts on the button after them, and two buttons
           promising the same thing is how a student taps without reading. */}
       <button type="submit" className="btn-primary mt-4" disabled={busy}>
@@ -613,7 +617,7 @@ function RegisterForm({
  * apply is worse than no rule, because it makes a student look for something
  * that is not there.
  *
- * It gives away nothing the phone was not already told — `multi` and `pts`
+ * It gives away nothing the phone was not already told - `multi` and `pts`
  * arrive with the questions themselves. The answer key never comes near it.
  */
 /**
@@ -621,7 +625,7 @@ function RegisterForm({
  *
  * They are registered and the host has not started yet, so this screen has one
  * job beyond saying so: spend the wait on the rules, which is time the round no
- * longer has to pay for. Nothing here came from the question bank — only how
+ * longer has to pay for. Nothing here came from the question bank - only how
  * many questions there are and what they are worth.
  */
 function Waiting({
@@ -630,7 +634,9 @@ function Waiting({
   timeLimitSeconds,
   beginsInMs,
   prizeNote,
+  slug,
 }: {
+  slug: string;
   name: string;
   shape: QuizShape | null;
   timeLimitSeconds: number | null;
@@ -658,11 +664,32 @@ function Waiting({
         </div>
       ) : (
         <>
-          <h1 className="mb-1.5 font-display text-[28px] font-bold leading-tight text-plum">
-            {first ? `You are in, ${first}` : "You are in"}
-          </h1>
+          {/* Fixed gap, and a greeting that never wraps.
+              space-between was not what stretched this: at phone widths the
+              heading already fills the row, because it has to shrink to fit
+              beside the code, so there is no free space left to distribute.
+              The emptiness was inside the heading - it wrapped, and the second
+              line ("Sagar") is short inside a box as wide as the row. A block
+              of wrapped text cannot shrink back to the width it rendered at,
+              so the only cure is to stop it wrapping: the size flexes with the
+              viewport to keep it on one line, and truncate catches the rest.
+
+              Text size and code size trade against each other: both want the
+              same row. At 20px on a 375px phone the sentence needs about 200px
+              and the code 76px, which is all of it - so the code is 62px here
+              and tapping it opens a 220px one. A first name longer than about
+              seven letters ellipsises at that width rather than wrapping,
+              because wrapping is what put the hole back. */}
+          <div className="mb-1.5 flex items-center justify-center gap-4">
+            <h1 className="min-w-0 truncate font-display text-[clamp(20px,5.4vw,28px)] font-light leading-tight text-plum">
+              You are in{first ? "," : ""}{" "}
+              <span className="font-extrabold">{first}</span>
+            </h1>
+            {/* The door is open in the waiting room, so anybody nearby can join. */}
+            <PassItOn slug={slug} />
+          </div>
           <p className="mb-4 font-display text-[19px] font-light leading-snug text-plum-soft">
-            Waiting for the host to start the quiz. Keep this page open — it begins on its own.
+            Waiting for the host to start the quiz. Keep this page open - it begins on its own.
           </p>
           <div
             className="mb-4 flex items-center justify-center gap-2.5 rounded-2xl bg-petal px-4 py-3"
@@ -681,7 +708,7 @@ function Waiting({
       {shape ? (
         <>
           <p className="mb-3 text-center text-[13px] text-muted">
-            {starting ? "One last look:" : "While you wait, read this — it is worth marks."}
+            {starting ? "One last look:" : "While you wait, read this - it is worth marks."}
           </p>
           <Counts shape={shape} timeLimitSeconds={timeLimitSeconds} />
           <Rules shape={shape} timeLimitSeconds={timeLimitSeconds} />
@@ -699,7 +726,9 @@ function Instructions({
   timeLimitSeconds,
   prizeNote,
   onBegin,
+  slug,
 }: {
+  slug: string;
   questions: ClientQuestion[];
   name: string;
   timeLimitSeconds: number | null;
@@ -712,11 +741,25 @@ function Instructions({
 
   return (
     <>
-      <h1 className="mb-1.5 font-display text-[28px] font-bold leading-tight text-plum">
-        {first ? `Ready, ${first}?` : "Before you start"}
-      </h1>
+      {/* Name and code on one row - see the note in Waiting. */}
+      {/* Name one end, code the other, rule between - see the note in Waiting. */}
+      {/* Fixed gap, no wrapping - see the note in Waiting. */}
+      <div className="mb-1.5 flex items-center justify-center gap-4">
+        <h1 className="min-w-0 truncate font-display text-[clamp(20px,5.4vw,28px)] font-light leading-tight text-plum">
+          {first ? (
+            <>
+              Ready, <span className="font-extrabold">{first}</span>?
+            </>
+          ) : (
+            "Before you start"
+          )}
+        </h1>
+        {/* An untimed event has no round to be shut out of, so a neighbour can
+            still join from here. On a timed one the door closed at Start. */}
+        {timeLimitSeconds === null ? <PassItOn slug={slug} /> : null}
+      </div>
       <p className="mb-4 font-display text-[19px] font-light leading-snug text-plum-soft">
-        Read this once — it takes ten seconds and it is worth marks.
+        Read this once - it takes ten seconds and it is worth marks.
       </p>
 
       <Counts shape={shape} timeLimitSeconds={timeLimitSeconds} />
@@ -732,6 +775,104 @@ function Instructions({
           ? `Your ${limitMinutes} minute${limitMinutes === 1 ? "" : "s"} start the moment you tap this.`
           : "The clock starts on the first question."}
       </p>
+    </>
+  );
+}
+
+/**
+ * The join code, beside the greeting.
+ *
+ * In a hall the projector is a long way from the back row, but the phone next
+ * to you is at arm's length - so once one person is in, the people around them
+ * scan their screen instead.
+ *
+ * It sits at the top, next to the name, because the two places it lived before
+ * were both wrong: at the foot of the page nobody scrolled far enough to find
+ * it, and as a floating button in the corner most people never worked out what
+ * it was for. Up here it is the second thing on the screen.
+ *
+ * Small enough not to crowd the greeting, and tapping it opens a large one -
+ * 84px is about 2cm on a phone, which scans at arm's length but not across a
+ * table.
+ *
+ * Only rendered where a newcomer can actually get in - see the call sites. On a
+ * timed event's rules screen the round is already running and the door shut at
+ * Start, and a code leading to "this round has already started" is worse than
+ * no code at all.
+ */
+function PassItOn({ slug }: { slug: string }) {
+  const [open, setOpen] = useState(false);
+  // Read after mount: the server render has no window, and a code built from a
+  // relative path would point at nothing. QrCode draws a placeholder until then.
+  const [url, setUrl] = useState("");
+  useEffect(() => setUrl(`${window.location.origin}/s/${slug}`), [slug]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-label="Show a bigger code for somebody nearby to scan"
+        className="shrink-0 rounded-[14px] border border-ink/10 bg-surface p-1.5 text-center
+                   transition active:translate-y-px hover:border-plum/35"
+      >
+        <QrCode value={url} className="h-[62px] w-[62px]" title="Scan to join this quiz" />
+        <span className="mt-0.5 block font-display text-[9px] font-medium uppercase tracking-[0.12em] text-plum-soft">
+          Invite
+        </span>
+      </button>
+
+      {/* Portalled to <body> on purpose. The student card carries animate-rise,
+          whose fill-mode holds transform: translateY(0) on it for good - and a
+          transformed ancestor becomes the containing block for position: fixed.
+          Left inside, this dialog measured inset-0 against the tall scrollable
+          card instead of the viewport, so on a long page it opened far below
+          the fold. */}
+      {open
+        ? createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-5"
+          onClick={() => setOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Scan to join this quiz"
+        >
+          <div
+            className="w-full max-w-[340px] rounded-xl3 bg-surface p-5 text-center shadow-lift"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="font-display text-[11px] font-medium uppercase tracking-[0.16em] text-plum-soft">
+              Someone nearby still joining?
+            </p>
+            <QrCode
+              value={url}
+              className="mx-auto mt-3 h-[220px] w-[220px]"
+              title="Scan to join this quiz"
+            />
+            <p className="mt-3 text-[14px] leading-relaxed text-body">
+              Hold your screen up and let them scan it.
+            </p>
+            <code className="mt-1.5 block truncate rounded bg-petal px-1.5 py-1 text-[12px] text-plum">
+              {url || `/s/${slug}`}
+            </code>
+            <button type="button" className="btn-ghost mt-4" onClick={() => setOpen(false)}>
+              Done
+            </button>
+          </div>
+        </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
@@ -787,7 +928,7 @@ function Rules({
                 : `${multiCount} questions have more than one correct answer.`}
             </b>{" "}
             Those are marked <i>Select all that apply</i>. Tap every option you think is right, then
-            press Confirm. Only the exact set scores — half right earns nothing, and so does ticking
+            press Confirm. Only the exact set scores - half right earns nothing, and so does ticking
             everything.
           </Rule>
         ) : null}
@@ -813,12 +954,12 @@ function Rules({
             </b>{" "}
             The countdown runs in the top corner from the first question. When it reaches zero
             your answers are submitted automatically, so anything still unanswered stays
-            unanswered — keep moving.
+            unanswered - keep moving.
           </Rule>
         ) : null}
 
         <Rule icon="⏱️">
-          <b>Your time is measured per question</b> — from the moment it appears to the moment you
+          <b>Your time is measured per question</b> - from the moment it appears to the moment you
           answer. Ties on marks are broken by who answered faster, so do not idle.
         </Rule>
 
@@ -840,7 +981,7 @@ const Tile = ({ value, label }: { value: number; label: string }) => (
   </div>
 );
 
-/** One rule. The icon is decorative — the sentence has to stand on its own. */
+/** One rule. The icon is decorative - the sentence has to stand on its own. */
 const Rule = ({ icon, children }: { icon: string; children: React.ReactNode }) => (
   <li className="flex items-start gap-2.5">
     <span className="mt-px shrink-0 text-[16px] leading-snug" aria-hidden="true">
@@ -854,7 +995,7 @@ const Rule = ({ icon, children }: { icon: string; children: React.ReactNode }) =
  * One question. Timing starts when it renders and stops on the answer, so the
  * clock measures thinking time rather than how long the intro slide took.
  *
- * An ordinary question locks on the first tap — fastest for a room of students
+ * An ordinary question locks on the first tap - fastest for a room of students
  * on phones. A "select all that apply" question cannot work that way, so its
  * options toggle and a Confirm button commits the set. The phone is told only
  * that there is more than one right answer, never how many, so the count is no
@@ -925,7 +1066,7 @@ function Question({
           </span>
           {/* On a timed quiz the clock that matters is the one running out, so
               it replaces the per-question stopwatch. The per-question time is
-              still recorded either way — it is what breaks ties. */}
+              still recorded either way - it is what breaks ties. */}
           {remainingMs === null ? (
             <span className="font-display text-[13px] font-medium tabular-nums text-plum-soft">
               {fmtSeconds(tick)}
@@ -970,7 +1111,7 @@ function Question({
 
       <QuestionText
         text={question.text}
-        className="mb-2 font-display text-[19.5px] font-medium leading-[1.35] text-ink"
+        className="mb-2 break-words font-display text-[19.5px] font-medium leading-[1.35] text-ink"
       />
 
       {multi ? (
@@ -1005,7 +1146,11 @@ function Question({
             >
               {multi && isChosen(i) ? "✓" : "ABCDEFGH"[i]}
             </span>
-            <span className="text-[15.5px] font-semibold leading-snug text-ink">{text}</span>
+            {/* Staff-authored: break a long unbreakable token rather than let
+                it widen the card and scroll the page sideways. */}
+            <span className="min-w-0 break-words text-[15.5px] font-semibold leading-snug text-ink">
+              {text}
+            </span>
           </button>
         ))}
       </div>
@@ -1029,7 +1174,7 @@ function Question({
           </p>
         </>
       ) : index === 0 ? (
-        /* Worth saying once, at the start — not on all fifteen screens. */
+        /* Worth saying once, at the start - not on all fifteen screens. */
         <p className="hint mt-2">One tap locks your answer. You cannot go back.</p>
       ) : null}
     </>
@@ -1083,7 +1228,7 @@ function Finished({
       <PrizeNote text={prizeNote} />
 
       <p className="hint mt-2.5">
-        Nothing more to do here — you can put your phone away.
+        Nothing more to do here - you can put your phone away.
       </p>
     </>
   );

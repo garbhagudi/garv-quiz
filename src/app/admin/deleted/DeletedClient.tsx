@@ -162,11 +162,11 @@ export function DeletedClient({ canWrite }: { canWrite: boolean }) {
                               </div>
                             ) : null}
                           </td>
-                          <td className="text-[13px]">{row.detail || "—"}</td>
+                          <td className="text-[13px]">{row.detail || "-"}</td>
                           <td className="whitespace-nowrap text-[12.5px] text-muted">
                             {when(row.deleted_at)}
                           </td>
-                          <td className="text-[12.5px] text-muted">{row.deleted_by ?? "—"}</td>
+                          <td className="text-[12.5px] text-muted">{row.deleted_by ?? "-"}</td>
                           {canWrite ? (
                             <td className="whitespace-nowrap text-right">
                               {stranded ? (

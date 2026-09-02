@@ -32,7 +32,7 @@ export const POST = route(async (req: Request) => {
      LIMIT 1`) as unknown as { time_limit_seconds: number | null }[];
   const timeLimitSeconds = limitRow?.time_limit_seconds ?? null;
 
-  // Closed by hand, or the round ran out — the student cannot tell the
+  // Closed by hand, or the round ran out - the student cannot tell the
   // difference and does not need to. A timed event that is open but unstarted
   // is *not* closed: that is the waiting room, and registering is exactly what
   // a student does there, so it falls through to the branch further down.
@@ -54,7 +54,7 @@ export const POST = route(async (req: Request) => {
   /* -------------------------- find or create the student -----------------
      There is exactly one row per mobile number per event, for ever. If the
      team deleted this student's entry, registering again revives that same row
-     rather than adding a second one — so nobody ends up with two records and
+     rather than adding a second one - so nobody ends up with two records and
      two email addresses on file.
 
      Their old attempts stay deleted, which is what lets them play again: the
@@ -62,7 +62,7 @@ export const POST = route(async (req: Request) => {
      new attempt is in, the number is spoken for again.
 
      The mobile number is the identity, but the email address is unique per
-     event too — so both have to be looked at before deciding who this is.
+     event too - so both have to be looked at before deciding who this is.
      A student who registers, comes back, and retypes their number differently
      is the same student: recognising them by their address and moving the row
      to the new number is right, and refusing them for reusing their own
@@ -95,7 +95,7 @@ export const POST = route(async (req: Request) => {
 
   // The address is on file under a number nobody has registered. Same name, and
   // this is the student coming back having typed their number differently.
-  // A different name, and it is two students sharing one inbox — which is what
+  // A different name, and it is two students sharing one inbox - which is what
   // the address rule is for, so this stays refused.
   const returningByEmail = Boolean(byEmail) && !byPhone;
   if (returningByEmail && !nameMatches(input.name, byEmail.name))
@@ -198,17 +198,17 @@ export const POST = route(async (req: Request) => {
   /* ---- the waiting room -------------------------------------------------
      Everything above has happened: they are registered, their number and
      address are theirs, and the retake rule has let them through. What has not
-     happened is the round — so no attempt is opened, and no questions leave the
+     happened is the round - so no attempt is opened, and no questions leave the
      server. Registering early is the whole point: typing a name and a mobile
      number is not something to spend a five-minute round on.
 
      The phone waits, watching /api/public/organization, and calls this route
      again when the lead-in runs out. That second call finds this same
      participant by number, opens the attempt, and stamps `started_at` at the
-     moment the questions actually appear — which is what the clock is read
+     moment the questions actually appear - which is what the clock is read
      from, here and at submit. */
   if (!questionsReady(organization, timeLimitSeconds)) {
-    // Shape only — how many questions, how many marks, how many take more than
+    // Shape only - how many questions, how many marks, how many take more than
     // one answer. Derived from the stripped copy, so it is provably free of the
     // answer key: the room can read the rules while it waits without a single
     // question leaving the server before the round starts.

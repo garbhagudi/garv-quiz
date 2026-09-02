@@ -14,13 +14,13 @@ const notFound = () =>
   });
 
 /**
- * GET /api/media/:id — one uploaded picture.
+ * GET /api/media/:id - one uploaded picture.
  *
  * Public on purpose: the phone showing a question has no admin session, so the
  * picture cannot sit behind the admin guard. The random uuid is the only handle
  * and it is never listed anywhere a student can reach.
  *
- * The bytes for a given id never change — a re-upload creates a new row — so
+ * The bytes for a given id never change - a re-upload creates a new row - so
  * the response is immutable and cached for a year. On the day of an event that
  * means one read per picture per phone, not one per question screen.
  */

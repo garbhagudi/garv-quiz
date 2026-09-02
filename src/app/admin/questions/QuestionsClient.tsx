@@ -88,7 +88,7 @@ export function QuestionsClient({ canWrite }: { canWrite: boolean }) {
 
     const next = [...questions];
     [next[index], next[target]] = [next[target], next[index]];
-    setQuestions(next); // optimistic — the list is the source of truth for order
+    setQuestions(next); // optimistic - the list is the source of truth for order
 
     setSaving(true);
     try {
@@ -104,7 +104,7 @@ export function QuestionsClient({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  // PATCH replaces the whole row, so every field has to be sent back — leaving
+  // PATCH replaces the whole row, so every field has to be sent back - leaving
   // one out would quietly wipe the answer key or the picture off a question
   // that was only meant to be hidden.
   async function toggleActive(q: QuestionRow) {
@@ -276,7 +276,7 @@ export function QuestionsClient({ canWrite }: { canWrite: boolean }) {
                 <p className="mt-1 text-[12.5px] text-muted">
                   {current.time_limit_seconds
                     ? `Timed: ${limitLabel(current.time_limit_seconds)} for the whole quiz`
-                    : "Untimed — students take as long as they like"}
+                    : "Untimed - students take as long as they like"}
                 </p>
               </div>
               {saving ? <span className="text-[12.5px] text-muted">Saving order…</span> : null}
@@ -516,7 +516,7 @@ function SetModal({
           label="Time limit (minutes)"
           hint={
             limitMinutes.trim() === ""
-              ? "Leave blank for no limit — students take as long as they like."
+              ? "Leave blank for no limit - students take as long as they like."
               : "For the whole quiz. The countdown runs on the student's screen and submits their answers automatically when it reaches zero."
           }
         >
@@ -539,7 +539,7 @@ function SetModal({
               checked={isArchived}
               onChange={(e) => setIsArchived(e.target.checked)}
             />
-            Archived — hide from the default choices when creating an organization
+            Archived - hide from the default choices when creating an organization
           </label>
         ) : null}
 

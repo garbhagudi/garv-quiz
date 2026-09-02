@@ -12,7 +12,7 @@ const schema = z.object({
 });
 
 /**
- * POST /api/admin/password — change your own password.
+ * POST /api/admin/password - change your own password.
  * Available to every role, including viewers, and always requires the old one.
  */
 export const POST = route(async (req: Request) => {

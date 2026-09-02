@@ -10,7 +10,7 @@ import { parseQuestionText, isPlainQuestionText } from "@/lib/questionText";
  * paragraphs and list items inside, which is what lets the same component sit in
  * a 19.5px quiz screen and a 13.5px table cell without knowing about either.
  *
- * The text is rendered as text. There is no HTML in it and none is produced —
+ * The text is rendered as text. There is no HTML in it and none is produced -
  * see src/lib/questionText.ts.
  */
 export function QuestionText({
@@ -20,7 +20,7 @@ export function QuestionText({
 }: {
   text: string;
   className?: string;
-  /** e.g. "3." — kept on the same line as the first word, not above it. */
+  /** e.g. "3." - kept on the same line as the first word, not above it. */
   prefix?: string;
 }) {
   const lead = prefix ? `${prefix} ` : "";

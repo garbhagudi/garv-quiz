@@ -72,7 +72,7 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
 });
 
 /**
- * PATCH /api/admin/organizations/:id — update the event and its quiz settings.
+ * PATCH /api/admin/organizations/:id - update the event and its quiz settings.
  *
  * A true partial update: anything the caller leaves out keeps its stored value,
  * so `{ isOpen: false }` closes entries without quietly resetting the shuffle,
@@ -96,7 +96,7 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
      by accident while somebody is renaming an event.
 
      The deadline is worked out here rather than in SQL because every reader
-     compares it against its own clock — the browser's, or this server's — and
+     compares it against its own clock - the browser's, or this server's - and
      never against the database's. Computing it the same way it is read keeps
      one clock in the story instead of two. */
   if (body.startRound === true) {

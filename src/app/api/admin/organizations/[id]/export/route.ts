@@ -22,7 +22,7 @@ const stamp = (iso: string | null) =>
  * GET /api/admin/organizations/:id/export
  *
  * Downloads the whole event as a four-sheet workbook. Unlike the original
- * build, exporting never deletes anything — clearing is a separate, explicitly
+ * build, exporting never deletes anything - clearing is a separate, explicitly
  * confirmed action, so a failed download can't lose the data.
  */
 export const GET = route(async (_req: Request, ctx: Ctx) => {
@@ -154,9 +154,9 @@ export const GET = route(async (_req: Request, ctx: Ctx) => {
     ["Top score", `${summary.top_score} of ${summary.out_of}`],
     ["Average answer time", formatMs(summary.avg_answer_ms)],
     [],
-    ["Winner", results[0] ? `${results[0].name} — ${results[0].score} pts` : "—"],
-    ["Runner-up", results[1] ? `${results[1].name} — ${results[1].score} pts` : "—"],
-    ["Third", results[2] ? `${results[2].name} — ${results[2].score} pts` : "—"],
+    ["Winner", results[0] ? `${results[0].name} - ${results[0].score} pts` : "-"],
+    ["Runner-up", results[1] ? `${results[1].name} - ${results[1].score} pts` : "-"],
+    ["Third", results[2] ? `${results[2].name} - ${results[2].score} pts` : "-"],
     [],
     ["Ranking rule", "Most points, then fastest total answering time, then earliest submission"],
     ["Exported", stamp(new Date().toISOString())],

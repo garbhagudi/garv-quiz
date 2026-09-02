@@ -7,7 +7,7 @@
  * no changes: `DATABASE_HTTP_ENDPOINT` points the driver here instead of at Neon.
  *
  * Two backends:
- *   postgresBackend(url)  a real Postgres — your Docker container (npm run dev:local)
+ *   postgresBackend(url)  a real Postgres - your Docker container (npm run dev:local)
  *   pgliteBackend()       Postgres compiled to WebAssembly, in this process,
  *                         needing nothing installed (the test scripts)
  *
@@ -35,7 +35,7 @@ const asText = (v) => {
 /* ------------------------- backend: real Postgres ------------------------ */
 
 /**
- * Talks to a Postgres server — your Docker container. Type parsing is disabled
+ * Talks to a Postgres server - your Docker container. Type parsing is disabled
  * so values arrive as text; the app's driver parses them at the other end,
  * exactly as it would with Neon.
  */
@@ -137,7 +137,7 @@ export async function pgliteBackend(dataDir) {
  * @param {object} opts
  * @param {object} opts.backend  from postgresBackend() or pgliteBackend()
  * @param {number} [opts.port]   any spare port
- * @param {string} [opts.host]   loopback only — this speaks unauthenticated SQL
+ * @param {string} [opts.host]   loopback only - this speaks unauthenticated SQL
  *                               and must never be reachable from off the machine
  */
 export async function startNeonEmulator({ backend, port = 5442, host = "127.0.0.1", log = false }) {
@@ -159,7 +159,7 @@ export async function startNeonEmulator({ backend, port = 5442, host = "127.0.0.
       try {
         const parsed = JSON.parse(body || "{}");
 
-        // sql.transaction([...]) — run as one real transaction, so a failure
+        // sql.transaction([...]) - run as one real transaction, so a failure
         // rolls the whole submission back exactly as it would on Neon.
         if (Array.isArray(parsed.queries)) {
           if (log) console.log(`  [db] batch of ${parsed.queries.length}`);

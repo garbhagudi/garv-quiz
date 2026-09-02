@@ -75,7 +75,7 @@ export type Organization = {
   created_at: string;
 };
 
-/** What the public organization page needs — deliberately a subset of Organization. */
+/** What the public organization page needs - deliberately a subset of Organization. */
 export type OrganizationPublic = Pick<
   Organization,
   | "slug"
@@ -96,7 +96,7 @@ export type LeaderboardRow = {
   max_score: number;
 };
 
-/** The admin view of a result row — everything, including contact details. */
+/** The admin view of a result row - everything, including contact details. */
 export type ResultRow = LeaderboardRow & {
   attempt_id: number;
   public_id: string;

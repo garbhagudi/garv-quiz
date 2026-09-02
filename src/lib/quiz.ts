@@ -8,7 +8,7 @@ import type { Organization } from "./types";
  * mid-event never changes how an already-started quiz is marked.
  *
  * `ci` and `cis` say the same thing twice on purpose. `cis` is the real answer
- * key — an array, so a question can have several correct options. `ci` is its
+ * key - an array, so a question can have several correct options. `ci` is its
  * first entry, kept so that an attempt snapshot written before multiple answers
  * existed still marks correctly, and so nothing that reads `ci` needs changing.
  */
@@ -25,7 +25,7 @@ export type ServedQuestion = {
 };
 
 /**
- * The same question with the answer key removed — this is what the phone gets.
+ * The same question with the answer key removed - this is what the phone gets.
  * `multi` is the one thing the client is told about the key: that there is more
  * than one right option. It is not told how many, which would narrow the guess.
  */
@@ -49,7 +49,7 @@ export function answerKey(q: ServedQuestion): number[] {
   };
 
   // `cis` first, but only if something in it survives. A key that is missing,
-  // empty, or entirely unusable falls back to `ci` — never to "no right answer
+  // empty, or entirely unusable falls back to `ci` - never to "no right answer
   // at all", which would silently mark a whole question wrong for everybody.
   const fromArray = Array.isArray(q.cis) ? usable(q.cis) : [];
   return fromArray.length ? fromArray : usable([q.ci]);
@@ -66,7 +66,7 @@ export const stripAnswers = (served: ServedQuestion[]): ClientQuestion[] =>
     ...(q.img ? { img: q.img, alt: q.alt ?? "" } : {}),
   }));
 
-/** Fisher–Yates using a CSPRNG, so option order isn't predictable per student. */
+/** Fisher-Yates using a CSPRNG, so option order isn't predictable per student. */
 function shuffled<T>(input: T[]): T[] {
   const a = [...input];
   for (let i = a.length - 1; i > 0; i--) {
@@ -153,7 +153,7 @@ export async function buildServedQuestions(organization: Organization): Promise<
 
 /**
  * What one phone sends back for one question. `optionIndexes` is the real
- * field — a set of taps. `optionIndex` is the single-answer form an older
+ * field - a set of taps. `optionIndex` is the single-answer form an older
  * client sends, and -1 there still means "left unanswered".
  */
 export type SubmittedAnswer = {
@@ -206,7 +206,7 @@ export type Marked = {
 
 /**
  * Marks a submission against the stored snapshot. Nothing the client sends is
- * trusted beyond "which options did I tap" — the score is computed here, so a
+ * trusted beyond "which options did I tap" - the score is computed here, so a
  * forged payload cannot award itself points.
  *
  * A question with several correct options is all-or-nothing: the chosen set has

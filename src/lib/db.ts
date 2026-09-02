@@ -3,7 +3,7 @@ import { neon, neonConfig } from "@neondatabase/serverless";
 type NeonClient = ReturnType<typeof neon>;
 
 /**
- * The app is misconfigured — a wrong or missing environment variable, not a bad
+ * The app is misconfigured - a wrong or missing environment variable, not a bad
  * request. `route()` reports these verbatim instead of flattening them into
  * "something went wrong", because the person who can fix it needs to read it.
  */
@@ -31,7 +31,7 @@ function connect(): NeonClient {
   // connection string as `https://<host>/sql`, which pins it to port 443 and to
   // whatever the hostname resolves to. Setting this points it at a Postgres-over-
   // HTTP endpoint you run yourself (see `npm run dev:local`). Never set it in
-  // production — Neon's own endpoint is the right one there.
+  // production - Neon's own endpoint is the right one there.
   const endpoint = process.env.DATABASE_HTTP_ENDPOINT;
   if (endpoint) neonConfig.fetchEndpoint = endpoint;
 
@@ -43,7 +43,7 @@ function connect(): NeonClient {
 
 /**
  * This driver speaks SQL over HTTPS, not the Postgres wire protocol, so a
- * connection string pointing at a Postgres server on this machine cannot work —
+ * connection string pointing at a Postgres server on this machine cannot work -
  * the driver would ask `https://localhost/sql` for it. Left unchecked that
  * surfaces much later as a bare "fetch failed", which says nothing useful, so
  * catch it here and name the actual fix.
@@ -80,7 +80,7 @@ function assertUsableConnectionString(url: string, endpoint: string | undefined)
   if (isLocal)
     throw new ConfigError(
       `DATABASE_URL points at "${host}", a database on this machine, but this app talks to ` +
-        `Postgres over HTTPS rather than the usual port-5432 protocol — so it cannot reach it.\n\n` +
+        `Postgres over HTTPS rather than the usual port-5432 protocol - so it cannot reach it.\n\n` +
         `For local development, use:  docker compose up -d  &&  npm run dev:local\n` +
         `That sets up the connection for you. Keep DATABASE_URL for your Neon string, ` +
         `which is what "npm run dev" and Vercel use.`,
@@ -93,7 +93,7 @@ function assertUsableConnectionString(url: string, endpoint: string | undefined)
  *   const rows = await sql`SELECT * FROM organizations WHERE id = ${id}`;
  *
  * Interpolations are always sent as bound parameters, never string-concatenated,
- * so this is safe against injection. There is no connection pool to manage —
+ * so this is safe against injection. There is no connection pool to manage -
  * each call is one HTTPS request, which is what makes it work on Vercel.
  *
  * The connection is created on first use rather than at import time, so a

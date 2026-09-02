@@ -20,14 +20,14 @@ Staff     /admin               the full panel
 
 ## How it works
 
-**One organization is one event.** An organization row carries a `slug` — the code students
-type — plus its own question set and settings: how many questions to ask,
+**One organization is one event.** An organization row carries a `slug` - the code students
+type - plus its own question set and settings: how many questions to ask,
 whether to shuffle, whether one attempt per mobile, whether to show scores and
 the leaderboard.
 
 **Marking happens on the server, always.** When a student starts, the app picks
-their questions, shuffles the options, and stores that exact arrangement —
-answer key included — on the attempt row. The phone gets the questions with the
+their questions, shuffles the options, and stores that exact arrangement -
+answer key included - on the attempt row. The phone gets the questions with the
 key stripped out, and on submit reports only which option index it tapped. So:
 
 - page source reveals nothing useful;
@@ -39,7 +39,7 @@ key stripped out, and on submit reports only which option index it tapped. So:
 
 **A question can have more than one correct option.** Tick as many as apply in
 the editor. The student then sees "Select all that apply", toggles options, and
-confirms — instead of the single tap that locks an ordinary question. Marking is
+confirms - instead of the single tap that locks an ordinary question. Marking is
 all-or-nothing: the chosen set has to match the answer key exactly, so half of a
 two-answer question scores nothing, and neither does ticking every option to
 cover the possibilities. The phone is told only *that* a question takes several
@@ -47,7 +47,7 @@ answers, never how many, because the count would narrow the guess.
 
 **Registering twice is allowed until they finish.** Pressing Continue registers
 the student and opens an attempt, so anyone who goes back and fills the form in
-again — or reads the rules and wanders off — leaves an attempt behind. That is
+again - or reads the rules and wanders off - leaves an attempt behind. That is
 fine: they are recognised by mobile number *or* email address, get a fresh
 attempt, and keep one participant row. Only a *completed* run turns somebody
 away, with "You have already played this quiz", whichever of the two they came
@@ -59,24 +59,24 @@ fixed script: the counts are real, the "select all that apply" rule appears only
 when their paper contains one, and the marks line claims questions are worth
 different amounts only when they are. A rule that does not apply is worse than
 none, because it sends a student looking for something that is not there. It
-gives away nothing new — `multi` and `pts` already travel with the questions.
+gives away nothing new - `multi` and `pts` already travel with the questions.
 
 Two consequences worth knowing. The button on the form says **Continue**, not
 "Start the quiz", because it does not start it. And the wall clock starts when
 the rules screen is left, not at registration, so reading them carefully does not
-cost a student their total time — per-question timing, which is what breaks ties,
+cost a student their total time - per-question timing, which is what breaks ties,
 is unaffected either way.
 
 **Every question shows what it is worth**, beside the timer, and the student's
 answer review shows the same per question as `2/2` or `0/1`. That last number
 comes from the attempt's own snapshot, not from `answers.points`, which records
-what was *earned* and is 0 on a wrong answer — so it cannot say what the question
+what was *earned* and is 0 on a wrong answer - so it cannot say what the question
 was worth.
 
 **Each event has a screen for the day itself.** The organization page opens on
 **Run the quiz**, which is deliberately the narrowest tab: a large countdown,
-Start round and Close entries, three numbers — registered, still answering,
-submitted — and the leaders so far. Nothing else. It answers the four questions
+Start round and Close entries, three numbers - registered, still answering,
+submitted - and the leaders so far. Nothing else. It answers the four questions
 a host actually asks standing in front of a room, and refreshes itself every
 five seconds without anybody ticking a box. The full results table, the
 per-question analysis, the *Did not finish* list and the settings are all one
@@ -84,13 +84,13 @@ tab away, where they belong.
 
 The screen polls, and does so deliberately. It asks a route of its own,
 `/api/admin/organizations/:id/live`, which answers in **one** database round trip
-with four numbers and at most five names — around 300 bytes that barely grows as
+with four numbers and at most five names - around 300 bytes that barely grows as
 the room fills. The full detail route behind the other tabs takes five round
 trips and carries the whole results table, the question analysis and the
 did-not-finish list, which is fine to open once and wasteful every few seconds.
 It polls **only when there is something to watch**: every 5 seconds while a
 round is counting down or people are still mid-quiz, every 20 otherwise, and not
-at all while the browser tab is hidden — refreshing the moment it comes back.
+at all while the browser tab is hidden - refreshing the moment it comes back.
 An event sitting open with no round running changes no faster than somebody can
 register, so watching it closely is all cost and no information. One rule,
 `refreshMs` in `src/lib/eventWindow.ts`, paces both the tab and the standalone
@@ -100,7 +100,7 @@ None of that load comes from the room, incidentally: a student's phone calls the
 server exactly twice, once to start and once to submit, and never polls. Two
 staff screens watching a dashboard are the only thing on this timer.
 
-It has a URL of its own: **`/organizations/<code>/dashboard`** — or the full
+It has a URL of its own: **`/organizations/<code>/dashboard`** - or the full
 `/admin/organizations/<code>/dashboard`, which is where the short one redirects
 to. Addressed by the event's code rather than a database id, so a host can type
 it from memory and leave it open on a second screen for the whole session. The
@@ -114,7 +114,7 @@ mean two routes to keep in step with only one of them protected. `organizations`
 is a reserved code, so it can never shadow a real event.
 
 "Still answering" is not simply "attempts left open". An attempt only counts
-while it could plausibly still be running — its own countdown has not expired —
+while it could plausibly still be running - its own countdown has not expired -
 because a host watching that number is waiting for it to reach zero, and
 somebody who registered and wandered off is never coming back. Once the round
 ends, that is the one thing the screen says out loud: *the round is over, but
@@ -122,7 +122,7 @@ three students are still answering*, so nobody announces a winner too early.
 Those students keep their own clock and their answers still count.
 
 **A round can start and end itself.** An event has one switch a host throws by
-hand — *Close entries* / *Reopen entries* — and, beside it, **Start round**.
+hand - *Close entries* / *Reopen entries* - and, beside it, **Start round**.
 Start opens the entries and gives the round as long as the question set's time
 limit says: press it, the room plays, and entries stop on their own. Press it
 again for the next round. A set with no time limit has no deadline to give, so
@@ -133,7 +133,7 @@ absent or still ahead. Nothing rewrites the switch when a deadline passes: a
 past deadline already means closed to every reader, so there is no job to run
 and no window where the database and the screen disagree. `src/lib/eventWindow.ts`
 is the only place that decides it, and being free of any database import it is
-the same rule in the browser, on the server, and in the tests — the countdown in
+the same rule in the browser, on the server, and in the tests - the countdown in
 the admin header ticks off exactly what `/api/quiz/start` turns a student away
 by. A malformed deadline is treated as no deadline rather than as closed, so a
 bad value can never lock a room out of its own quiz.
@@ -145,7 +145,7 @@ an event mid-round does not end it.
 
 **Running out never costs anybody their answers.** The deadline stops *new*
 entries. A student already playing keeps their own countdown and can still
-submit — the same as the manual close has always done — so the room empties out
+submit - the same as the manual close has always done - so the room empties out
 over the following minute instead of everyone being cut off mid-question.
 
 **A quiz can be timed.** A question set carries an optional whole-quiz limit in
@@ -161,12 +161,12 @@ so running out costs a student the questions they did not reach and nothing more
 The countdown is read from a deadline instant rather than decremented, so a phone
 that sleeps mid-quiz catches up instead of gaining the time it was asleep.
 
-Two things it deliberately is not. It is **not** a per-question limit — one clock
+Two things it deliberately is not. It is **not** a per-question limit - one clock
 runs for the whole paper, so a hard question can be paid for with a fast one. And
 it is **not** an anti-cheat measure: the countdown runs in the browser, so
 somebody willing to edit the page can outlast it. What the server does keep is
 the true elapsed time of every attempt, from the row it created when the quiz
-started, and that is shown in the results table and the export — so an attempt
+started, and that is shown in the results table and the export - so an attempt
 that took far longer than the limit is visible to whoever is running the event.
 Treat it as a pacing device for a live room, which is what it is for.
 
@@ -174,18 +174,18 @@ Treat it as a pacing device for a live room, which is what it is for.
 needs. A line that opens with `-`, `*` or `•` becomes a bullet; a line that
 opens with `1.` or `2)` becomes a numbered item; everything else is ordinary
 wording. The space after the marker is optional, because `-Estradiol is rising`
-is how people actually type a bullet — but a marker with a digit or another dash
+is how people actually type a bullet - but a marker with a digit or another dash
 straight after it is left alone, so `-196°C is the temperature` and a rule of
 dashes stay as wording. So this, typed straight into the editor:
 
 ```
 Which of these are true of a blastocyst?
-- It forms around Day 5–6
+- It forms around Day 5-6
 - It has an inner cell mass
 ```
 
 reads as a stem with two bullets on the student's phone, in the question bank,
-in the editor's live preview and on every answer sheet — all four draw it with the
+in the editor's live preview and on every answer sheet - all four draw it with the
 same component, so it cannot look different in one of them.
 
 This is *not* Markdown and it never becomes HTML. The parser in
@@ -195,8 +195,8 @@ This is *not* Markdown and it never becomes HTML. The parser in
 counts at the start of a line and only with text after it, so "Day 5-6",
 "2 * 3" and "1.5 mm" stay as they were, and a stray dash never becomes an empty
 bullet.
-Where a list cannot be drawn — the audit log's label, a confirmation dialog, a
-spreadsheet cell — `flattenQuestionText()` gives the one-line form with the
+Where a list cannot be drawn - the audit log's label, a confirmation dialog, a
+spreadsheet cell - `flattenQuestionText()` gives the one-line form with the
 bullets kept as `•` markers.
 
 **A question can carry a picture.** Choose a PNG, JPEG, WebP or GIF up to 2 MB in
@@ -209,25 +209,25 @@ the app runs on serverless functions with no writable filesystem and there is no
 object store to configure. Each picture gets a random uuid and is read back from
 `/api/media/<uuid>`:
 
-- that route is public, because a student's phone has no admin session — the uuid
+- that route is public, because a student's phone has no admin session - the uuid
   is the only handle and it is never listed anywhere a student can reach;
 - the type is sniffed from the file's own magic bytes, not from its name or the
   Content-Type the browser claimed, so a `.png` that is really an HTML document is
   refused, and so is an SVG, which can carry script;
 - the bytes for a given uuid never change, so the response is `immutable` and
-  cached for a year — one read per picture per phone on the day, not one per
+  cached for a year - one read per picture per phone on the day, not one per
   question screen.
 
 **"Unfinished" counts people, not attempts.** The number on the event page is
 students who registered and never completed a run, which is the same set the
-*Did not finish* tab lists — click the tile to go straight to it. They cannot
+*Did not finish* tab lists - click the tile to go straight to it. They cannot
 disagree, because both come from one definition. The count of attempts still
 open is a different number, useful mid-event and reported separately in the
 export: one student who presses Continue five times and then finishes is five
 open attempts and nobody unfinished.
 
 **Ranking** is points, then fastest total answering time, then earliest
-submission. Timing is per question — from render to tap — so a slow intro slide
+submission. Timing is per question - from render to tap - so a slow intro slide
 costs nobody anything. Students see names and points only; times and contact
 details never reach the browser.
 
@@ -243,17 +243,17 @@ sets the flag; every read path filters on it. So:
 - the **Deleted** page lists everything anyone has removed, with who did it and
   when, and puts it back on request;
 - deleting an event marks its students and their attempts in the same sweep, all
-  stamped with one timestamp — restoring the event revives exactly that sweep and
+  stamped with one timestamp - restoring the event revives exactly that sweep and
   leaves anything deleted earlier alone;
 - **students are never duplicated.** One row per mobile number per event, for
   ever. If the team deletes a student and that student registers again, the same
-  row is revived — same record, updated details — rather than a second one being
+  row is revived - same record, updated details - rather than a second one being
   created. Their old attempts stay deleted, which is what lets them play; once
   they finish, the number is spoken for again and a further registration is
   refused;
 - **one email address per event** as well, so two students cannot share an
   inbox. Compared case-insensitively, so `Asha@x.com` and `asha@x.com` are one
-  person. Blank is exempt — the address is optional on some events and any
+  person. Blank is exempt - the address is optional on some events and any
   number of students may leave it empty. The rule is per event, so the same
   student can attend two colleges. Unlike the mobile number, a deleted student
   *does* release their address, because the number is the identity their row is
@@ -261,16 +261,16 @@ sets the flag; every read path filters on it. So:
   it, if somebody has;
 - **the same address arriving with a different number is the ambiguous case**,
   and the name decides it. It is either a student who came back and retyped
-  their number wrongly — who must not be locked out of their own quiz — or two
+  their number wrongly - who must not be locked out of their own quiz - or two
   students sharing an inbox, which the rule above exists to stop. Nothing in the
   request separates them except the name, so `nameMatches()` in
   `src/lib/identity.ts` is the tie-breaker: the same name moves that row to the
   new number, a different name is refused. It is the same forgiving comparison
   that lets a student back into their own dashboard, so it is not a new trust
-  assumption — but it is a heuristic, and somebody who knows both a name and an
+  assumption - but it is a heuristic, and somebody who knows both a name and an
   address could claim that row before its owner plays;
 - an event code and a staff email *are* freed by deletion (those unique rules are
-  partial, `WHERE is_deleted = false`), so a code can be reused straight away —
+  partial, `WHERE is_deleted = false`), so a code can be reused straight away -
   and restoring is refused, with the clash named, if something has since taken it;
 - a deleted event's link stops working and its students disappear from the people
   search, so the flag behaves like a deletion everywhere it should.
@@ -348,11 +348,11 @@ audit_log       who changed what
 ```
 
 The answer key on `questions` is stored twice, on purpose. `correct_indexes` is
-a jsonb array and is the real key — one entry for an ordinary question, several
+a jsonb array and is the real key - one entry for an ordinary question, several
 for a "select all that apply" one. `correct_index` holds the first of them, so
 the original CHECK still applies and any older read path keeps working. A row
-whose `correct_indexes` is an empty array — one written by hand-rolled SQL, or
-by a build that predates the column — is marked off `correct_index` instead, and
+whose `correct_indexes` is an empty array - one written by hand-rolled SQL, or
+by a build that predates the column - is marked off `correct_index` instead, and
 the next `npm run db:setup` fills the array in.
 
 The key is validated in the database, not only in the app: `correct_indexes` has
@@ -362,7 +362,7 @@ CHECK cannot hold, so the test lives in an IMMUTABLE function
 
 `organizations`, `participants`, `attempts`, `questions`, `question_sets` and
 `admin_users` all carry `is_deleted` / `deleted_at` / `deleted_by`. The foreign
-keys still cascade, but nothing in the application issues a `DELETE` — see
+keys still cascade, but nothing in the application issues a `DELETE` - see
 **Nothing is ever deleted** above. Removing a *question* also leaves past answers
 readable: they keep their own text snapshot, so old reports still make sense.
 
@@ -399,13 +399,13 @@ npm run db:setup         # once, to create tables and your first admin
 npm run dev
 ```
 
-Use a Neon **branch** for development rather than your production database —
+Use a Neon **branch** for development rather than your production database -
 branches are copy-on-write, so they are instant and free.
 
 ### Why a bridge in front of the local database
 
 `@neondatabase/serverless` speaks SQL over HTTPS, not the port-5432 wire
-protocol — which is what makes it work on Vercel, where there is no connection to
+protocol - which is what makes it work on Vercel, where there is no connection to
 keep alive. A Postgres on your own machine speaks that wire protocol, so
 `scripts/neon-http-emulator.mjs` sits between them and translates, and
 `DATABASE_HTTP_ENDPOINT` points the driver at it.
@@ -426,7 +426,7 @@ production, so there is no class of bug that only appears in one of them.
 | `npm run start` | serve a production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run db:setup` | create tables, seed questions and the first admin |
-| `npm run db:reset` | **destructive** — drop every table, then recreate |
+| `npm run db:reset` | **destructive** - drop every table, then recreate |
 | `npm run verify` | schema, SQL, upgrade, logic and render checks; no network, no database |
 | `npm run e2e` | build and drive the real app end to end |
 
@@ -438,22 +438,22 @@ npm run e2e      # 161 checks
 ```
 
 - **`verify:sql`** runs the real schema and every non-trivial query against
-  Postgres compiled to WebAssembly — constraints, ranking, cascades, the jsonb
+  Postgres compiled to WebAssembly - constraints, ranking, cascades, the jsonb
   handling, the reorder and renumber statements.
 - **`db:setup` checks before it migrates.** If a database already holds two
-  students sharing an address, the new index cannot be created — so setup stops
+  students sharing an address, the new index cannot be created - so setup stops
   first and prints exactly which rows clash, rather than failing halfway with a
   Postgres error.
 - **`verify:upgrade`** builds the schema as it was before the soft-delete change,
   fills it with an event and answers, applies the current `schema.sql` on top and
-  checks nothing was lost — the rehearsal for running `db:setup` against live data.
+  checks nothing was lost - the rehearsal for running `db:setup` against live data.
   It also proves the later additions land safely: every existing single answer is
   rewritten as a one-entry key, no question is given a picture it did not have,
   and a question written the old way is still accepted afterwards.
 - **`verify:logic`** covers marking and validation: partial submissions, forged
   payloads, duplicate answers, clamped timings, tie-breaks, phone and slug
   normalisation, how question wording is split into lists, and the multi-answer
-  rules — an exact set scores, a partial set
+  rules - an exact set scores, a partial set
   and a tick-everything set both score zero, an attempt snapshot taken before
   multiple answers existed still marks off its single key, and neither form of the
   key ever appears in what the phone is sent.
@@ -464,14 +464,14 @@ npm run e2e      # 161 checks
   the wording arrives as text and that the only tags in the output are the ones
   the component itself chose.
 - **`e2e`** starts the actual production server against a local stand-in for
-  Neon's HTTP endpoint and plays the whole product over HTTP — registering,
+  Neon's HTTP endpoint and plays the whole product over HTTP - registering,
   answering, the leaderboard, the dashboard, admin sign-in, question editing, the
   Excel export, and every permission and anti-cheat rule. That includes uploading
   a real PNG and reading it back byte for byte with no session, refusing an HTML
   file dressed as a `.png`, and playing a multi-answer event three ways: exactly
   right, half right, and every box ticked.
 
-None of them need anything installed — no Docker, no network, no database. `e2e`
+None of them need anything installed - no Docker, no network, no database. `e2e`
 builds into `.next-e2e/` and runs its own database on port 5453, so it is safe to
 run while a dev server is up.
 
@@ -510,8 +510,8 @@ breaking the build.
 - **The last active owner is protected** from demotion, disabling and deletion,
   so the team cannot lock itself out.
 - **Answer keys must never be added to a response.** `stripAnswers()` exists for
-  this; the e2e suite asserts that neither `ci` nor `cis` — nor anything else
-  answer-shaped — appears in the payload sent to a phone.
+  this; the e2e suite asserts that neither `ci` nor `cis` - nor anything else
+  answer-shaped - appears in the payload sent to a phone.
 - **`PATCH /api/admin/questions/:id` replaces the whole row**, unlike the
   organization route above. Send every field back, or a "Hide this question"
   click will quietly wipe its answer key or its picture. `answerKeyOfRow()` in
@@ -519,9 +519,9 @@ breaking the build.
 - **Who a registration belongs to is decided in one place**, at the top of
   `/api/quiz/start`: look up by number, look up by address, and only then decide.
   Anything that turns a student away belongs after that, next to the retake
-  check — not scattered through the lookups, which is how re-registering used to
+  check - not scattered through the lookups, which is how re-registering used to
   report an address clash when the real answer was "you already played".
-- **Read, refuse, then write — in that order.** A registration that is going to
+- **Read, refuse, then write - in that order.** A registration that is going to
   be refused must leave the database exactly as it found it. Moving the row and
   refusing afterwards made a finished student's number drift onto whatever they
   typed next: their row followed the new number, that number became spoken for,
@@ -529,18 +529,18 @@ breaking the build.
 - **Read the answer key through a helper, never off the field.** `answerKey()` in
   `src/lib/quiz.ts` for an attempt snapshot, `answerKeyOf()` in
   `src/lib/validate.ts` for an incoming request. Both fall back to the
-  single-answer form, which is what keeps attempts started before the change —
-  and rows seeded by hand-written SQL — marking correctly.
+  single-answer form, which is what keeps attempts started before the change -
+  and rows seeded by hand-written SQL - marking correctly.
 - **Question wording is text, and must stay text.** `QuestionText` takes a string
   and returns elements; there is no `dangerouslySetInnerHTML` anywhere near it and
   there must never be. If you extend the notation, extend the parser in
-  `src/lib/questionText.ts` and add a case to `verify:logic` — do not reach for a
+  `src/lib/questionText.ts` and add a case to `verify:logic` - do not reach for a
   Markdown library, which would hand an admin an HTML injection into every
   student's phone.
 - **A question picture is served from our own origin**, so what a file claims to
   be is not good enough: `/api/admin/uploads` sniffs the magic bytes and stores
   the type it found, and `/api/media/:id` sends that stored type back with
-  `nosniff`. If you ever add a format, add its signature too — do not widen the
+  `nosniff`. If you ever add a format, add its signature too - do not widen the
   accepted list on the strength of a Content-Type header.
 
 ---
@@ -558,5 +558,5 @@ restores it whole. To reclaim the space, delete the `media` rows yourself.
 
 *Clear all entries* on an event hides its students and answers while keeping the
 event and its code. Nothing is erased: the rows stay in the database, flagged,
-and the **Deleted** page can put them back. To purge for real — a data-retention
-request, say — you have to delete the rows in the database yourself.
+and the **Deleted** page can put them back. To purge for real - a data-retention
+request, say - you have to delete the rows in the database yourself.

@@ -31,7 +31,7 @@ async function activeOwners(excludeId?: number) {
   return count;
 }
 
-/** PATCH /api/admin/users/:id — rename, change role, disable, or reset a password. */
+/** PATCH /api/admin/users/:id - rename, change role, disable, or reset a password. */
 export const PATCH = route(async (req: Request, ctx: Ctx) => {
   const admin = await requireOwner();
   const id = Number((await ctx.params).id);
@@ -77,7 +77,7 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
   return ok({ user });
 });
 
-/** DELETE /api/admin/users/:id — remove a staff account. */
+/** DELETE /api/admin/users/:id - remove a staff account. */
 export const DELETE = route(async (_req: Request, ctx: Ctx) => {
   const admin = await requireOwner();
   const id = Number((await ctx.params).id);

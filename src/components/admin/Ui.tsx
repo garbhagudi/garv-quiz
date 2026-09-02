@@ -39,7 +39,7 @@ export function Stats({
     value: ReactNode;
     sub?: string;
     tone?: "plain" | "good" | "warn";
-    /** Makes the tile a button — for a number that has a list behind it. */
+    /** Makes the tile a button - for a number that has a list behind it. */
     onClick?: () => void;
   }[];
 }) {
@@ -183,7 +183,7 @@ export function Field({
   );
 }
 
-/** A labelled on/off switch — used heavily by the organization settings form. */
+/** A labelled on/off switch - used heavily by the organization settings form. */
 export function Toggle({
   label,
   hint,
@@ -279,7 +279,7 @@ export function Modal({
 
 export const secs = (ms: number) => {
   // A row that is missing the field renders an em dash rather than "NaNm NaNs".
-  if (!Number.isFinite(ms)) return "—";
+  if (!Number.isFinite(ms)) return "-";
   const t = Math.max(0, ms) / 1000;
   if (t < 60) return `${t.toFixed(1)}s`;
   const m = Math.floor(t / 60);
@@ -295,6 +295,6 @@ export const when = (iso: string | null | undefined, withTime = true) =>
         year: "numeric",
         ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}),
       })
-    : "—";
+    : "-";
 
 export const MEDALS = ["🥇", "🥈", "🥉"];

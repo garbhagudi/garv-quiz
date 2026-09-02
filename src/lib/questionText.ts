@@ -3,13 +3,13 @@
  * can carry a list:
  *
  *     Which of these are true of a blastocyst?
- *     - It forms around Day 5–6
+ *     - It forms around Day 5-6
  *     - It has an inner cell mass
  *     1. First numbered point
  *
  * A line that opens with a dash, asterisk or bullet character becomes a list
  * item; a line that opens with "1." or "2)" becomes a numbered item; anything
- * else is ordinary wording. Nothing else is interpreted — in particular this is
+ * else is ordinary wording. Nothing else is interpreted - in particular this is
  * not Markdown and never becomes HTML, so a question is free to contain <, &
  * or a stray asterisk mid-sentence without any of it being dangerous.
  *
@@ -26,8 +26,8 @@ export type QuestionBlock =
 /**
  * A list marker, and the two ways one can be followed.
  *
- *   `\s+`               a space after the marker, then anything — "- 21 mm".
- *   `(?=[^\s\d-])`      no space, but a letter or symbol next — "-Estradiol".
+ *   `\s+`               a space after the marker, then anything - "- 21 mm".
+ *   `(?=[^\s\d-])`      no space, but a letter or symbol next - "-Estradiol".
  *
  * The second form exists because that is how people actually type a bullet, but
  * it deliberately refuses a digit or another dash after the marker, so a line
@@ -39,11 +39,11 @@ export type QuestionBlock =
  */
 const AFTER_MARKER = String.raw`(?:\s+|(?=[^\s\d-]))`;
 
-/** "- item", "* item", "• item", "· item" — the marker must be followed by text. */
+/** "- item", "* item", "• item", "· item" - the marker must be followed by text. */
 const BULLET = new RegExp(String.raw`^[-*•·‣▪]${AFTER_MARKER}(.*\S)\s*$`);
 
 /**
- * "1. item", "2) item" — at most two digits, so a year cannot start a list, and
+ * "1. item", "2) item" - at most two digits, so a year cannot start a list, and
  * a digit may not follow the dot, so "1.5 mm" stays wording.
  */
 const NUMBER = new RegExp(String.raw`^(\d{1,2})[.)]${AFTER_MARKER}(.*\S)\s*$`);
@@ -96,7 +96,7 @@ export function parseQuestionText(text: string): QuestionBlock[] {
 }
 
 /**
- * True when the wording is a single ordinary line — which nearly every question
+ * True when the wording is a single ordinary line - which nearly every question
  * is. Lets a renderer keep the plain one-paragraph markup it always used, so
  * adding lists changed nothing for questions that do not have one.
  */

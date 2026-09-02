@@ -8,7 +8,7 @@
  * because that is what works on Vercel. This starts a small translator in front
  * of your container, runs `npm run db:setup` against it, then starts `next dev`.
  *
- * Everything above the driver is the real application — same routes, same SQL,
+ * Everything above the driver is the real application - same routes, same SQL,
  * same sessions as production. When you are ready to use Neon instead, put
  * DATABASE_URL and SESSION_SECRET in `.env.local` and run `npm run dev`.
  */
@@ -35,7 +35,7 @@ const ADMIN = {
   name: process.env.SEED_ADMIN_NAME ?? "Local Admin",
 };
 
-// A fixed secret so your sign-in survives a restart. Local only — production
+// A fixed secret so your sign-in survives a restart. Local only - production
 // reads SESSION_SECRET from the environment.
 const SESSION_SECRET =
   process.env.SESSION_SECRET ?? "local-development-session-secret-do-not-use-in-production-01";

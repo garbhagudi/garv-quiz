@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props) {
 /**
  * The staff door on an organization's own URL: /s/<code>/admin
  *
- * This is the flow used at an event — the host is already on the organization link, so
+ * This is the flow used at an event - the host is already on the organization link, so
  * signing in here shows that organization's winners and full details without having to
  * navigate the whole admin panel. Same credentials as /admin/login.
  */

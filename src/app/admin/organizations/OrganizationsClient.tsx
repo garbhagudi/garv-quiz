@@ -178,7 +178,7 @@ export function OrganizationsClient({ canWrite }: { canWrite: boolean }) {
                     </td>
                     <td className="text-right tabular-nums">{s.registered}</td>
                     <td className="text-right font-semibold tabular-nums">{s.completed}</td>
-                    <td className="text-right tabular-nums">{s.top_score ?? "—"}</td>
+                    <td className="text-right tabular-nums">{s.top_score ?? "-"}</td>
                     <td>
                       {/* Never `is_open` on its own: a deadline that has passed
                           closes an event without flipping that switch. */}

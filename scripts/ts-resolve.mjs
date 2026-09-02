@@ -1,7 +1,7 @@
 /**
  * Lets `node --experimental-strip-types` follow the extensionless relative
  * imports that TypeScript uses (`./db` → `./db.ts`) and the `@/` alias from
- * tsconfig. Only used by the verify scripts — the deployed app is bundled by
+ * tsconfig. Only used by the verify scripts - the deployed app is bundled by
  * Next, which resolves these itself.
  */
 import { registerHooks } from "node:module";

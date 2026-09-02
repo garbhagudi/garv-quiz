@@ -12,7 +12,7 @@ type Ctx = { params: Promise<{ id: string }> };
  * What the run screen needs while a round is going, and nothing else.
  *
  * The full detail route answers in five database round trips and carries the
- * whole results table, the per-question analysis and the did-not-finish list —
+ * whole results table, the per-question analysis and the did-not-finish list -
  * fine to open once, wasteful every few seconds for a screen showing four
  * numbers and five names. This is one round trip and a payload that does not
  * grow with the size of the room: the leaderboard is capped, and everything

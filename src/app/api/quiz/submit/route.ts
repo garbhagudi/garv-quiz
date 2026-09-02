@@ -27,7 +27,7 @@ type AttemptRow = {
  * How late a submission may be and still count.
  *
  * The student's countdown is started in their browser once the page has the
- * questions, which is always a moment after `started_at` was stamped here — so
+ * questions, which is always a moment after `started_at` was stamped here - so
  * an honest auto-submit at zero lands a little after the server's own deadline.
  * That gap is a round trip plus a render, never fifteen seconds.
  */
@@ -37,7 +37,7 @@ const GRACE_MS = 15_000;
  * POST /api/quiz/submit
  *
  * Marks the attempt against the snapshot stored when it started. The client
- * only says which option index it tapped for each position — every point is
+ * only says which option index it tapped for each position - every point is
  * awarded here, so a hand-crafted request cannot inflate a score.
  */
 export const POST = route(async (req: Request) => {

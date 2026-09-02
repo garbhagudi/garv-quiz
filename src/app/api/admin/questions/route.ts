@@ -32,7 +32,7 @@ export const GET = route(async (req: Request) => {
   return ok({ questions });
 });
 
-/** POST /api/admin/questions — add a question to the end of a set. */
+/** POST /api/admin/questions - add a question to the end of a set. */
 export const POST = route(async (req: Request) => {
   const admin = await requireWriter();
   const v = questionSchema.parse(await readJson(req));
@@ -71,7 +71,7 @@ const reorderSchema = z.object({
   order: z.array(z.coerce.number().int().positive()).min(1),
 });
 
-/** PUT /api/admin/questions — save a new question order for one set. */
+/** PUT /api/admin/questions - save a new question order for one set. */
 export const PUT = route(async (req: Request) => {
   const admin = await requireWriter();
   const v = reorderSchema.parse(await readJson(req));

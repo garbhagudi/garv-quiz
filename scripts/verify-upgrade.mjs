@@ -4,7 +4,7 @@
  * delete, fills it with an event, students and answers, then applies the
  * current schema.sql on top and checks nothing was lost or altered.
  *
- * That covers soft delete, the one-email-per-event rule, and — added later —
+ * That covers soft delete, the one-email-per-event rule, and - added later -
  * multiple correct answers per question and question pictures.
  */
 import { readFileSync } from "node:fs";
@@ -30,7 +30,7 @@ const after = statements(full);
 const db = new PGlite();
 let failures = 0;
 const check = (label, cond, note = "") => {
-  console.log(`  ${cond ? "ok  " : "FAIL"}  ${label}${note ? ` — ${note}` : ""}`);
+  console.log(`  ${cond ? "ok  " : "FAIL"}  ${label}${note ? ` - ${note}` : ""}`);
   if (!cond) failures++;
 };
 
@@ -245,7 +245,7 @@ check(
   (await db.query(`SELECT count(*)::int n FROM questions WHERE image_url <> ''`)).rows[0].n === 0,
 );
 
-// A question written the old way — correct_index only — still goes in, and the
+// A question written the old way - correct_index only - still goes in, and the
 // next schema run picks its key up. That is what keeps the seeds and the
 // verify scripts working after the upgrade.
 await db.query(

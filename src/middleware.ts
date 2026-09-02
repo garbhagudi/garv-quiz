@@ -4,7 +4,7 @@ import { jwtVerify } from "jose";
 /**
  * Gate on /admin/* so an unauthenticated visitor is bounced to the sign-in page
  * before any page code or query runs. The API routes verify the session again
- * on their own — this is the friendly redirect, not the security boundary.
+ * on their own - this is the friendly redirect, not the security boundary.
  */
 const secret = new TextEncoder().encode(process.env.SESSION_SECRET ?? "");
 
