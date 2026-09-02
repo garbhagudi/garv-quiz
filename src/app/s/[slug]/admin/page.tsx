@@ -42,7 +42,7 @@ export default async function OrganizationAdminPage({ params }: Props) {
             <h1 className="mb-1 font-display text-[26px] font-bold leading-tight text-plum">
               Staff sign in
             </h1>
-            <p className="mb-2 text-[15px] leading-relaxed text-[#463359]">
+            <p className="mb-2 text-[15px] leading-relaxed text-body">
               Results for <b>{organization.name}</b>.
             </p>
             <Suspense fallback={null}>

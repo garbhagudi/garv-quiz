@@ -448,7 +448,7 @@ export function QuizFlow(props: QuizFlowProps) {
         <p className="err mb-3" role="alert">
           {error}
         </p>
-        <p className="mb-4 text-[15.5px] leading-relaxed text-[#463359]">
+        <p className="mb-4 text-[15.5px] leading-relaxed text-body">
           Your answers are still here. Try again, and show this screen to the team if it keeps
           failing.
         </p>
@@ -476,7 +476,7 @@ function Closed({ title, body }: { title: string; body: string }) {
   return (
     <>
       <h1 className="mb-3 font-display text-[28px] font-bold leading-tight text-plum">{title}</h1>
-      <p className="mb-5 text-[15.5px] leading-relaxed text-[#463359]">{body}</p>
+      <p className="mb-5 text-[15.5px] leading-relaxed text-body">{body}</p>
     </>
   );
 }
@@ -846,7 +846,7 @@ const Rule = ({ icon, children }: { icon: string; children: React.ReactNode }) =
     <span className="mt-px shrink-0 text-[16px] leading-snug" aria-hidden="true">
       {icon}
     </span>
-    <span className="text-[14.5px] leading-relaxed text-[#463359]">{children}</span>
+    <span className="text-[14.5px] leading-relaxed text-body">{children}</span>
   </li>
 );
 
@@ -964,7 +964,7 @@ function Question({
           // Never an empty alt: a picture the question depends on is not
           // decorative, so a screen reader has to at least announce it is there.
           alt={question.alt || "Picture for this question"}
-          className="mb-4 max-h-[46vh] w-full rounded-2xl border-[1.5px] border-ink/10 bg-white object-contain"
+          className="mb-4 max-h-[46vh] w-full rounded-2xl border-[1.5px] border-ink/10 bg-surface object-contain"
         />
       ) : null}
 
@@ -991,7 +991,7 @@ function Question({
               "mb-2.5 flex w-full items-start gap-3 rounded-2xl border-[1.5px] px-4 py-3.5 text-left transition",
               isChosen(i)
                 ? "border-apricot bg-apricot/20"
-                : "border-ink/10 bg-white hover:border-plum/35 hover:bg-petal/60",
+                : "border-ink/10 bg-surface hover:border-plum/35 hover:bg-petal/60",
               dimmed(i) ? "opacity-45" : "",
             ].join(" ")}
           >
@@ -1055,7 +1055,7 @@ function Finished({
 
       {result.score !== null ? (
         <>
-          <p className="mb-3 text-[16.5px] leading-relaxed text-[#463359]">
+          <p className="mb-3 text-[16.5px] leading-relaxed text-body">
             Your answers are in. Here is how you did.
           </p>
           <div className="mb-4 grid grid-cols-2 gap-2.5">
@@ -1069,13 +1069,13 @@ function Finished({
             />
             <ScoreTile value={fmtTaken(result.answerMs)} label="your time" />
           </div>
-          <p className="mb-4 text-[15.5px] leading-relaxed text-[#463359]">
+          <p className="mb-4 text-[15.5px] leading-relaxed text-body">
             Winners will be announced by the host shortly. Ties on marks go to the faster time, so
             hold on to yours.
           </p>
         </>
       ) : (
-        <p className="mb-4 text-[16.5px] leading-relaxed text-[#463359]">
+        <p className="mb-4 text-[16.5px] leading-relaxed text-body">
           All {result.questionCount} answers are in. Winners will be announced by the host shortly.
         </p>
       )}

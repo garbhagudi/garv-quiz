@@ -140,7 +140,7 @@ export function TeamClient({ meId, isOwner }: { meId: number; isOwner: boolean }
           {(Object.keys(ROLE_HELP) as Role[]).map((r) => (
             <div key={r} className="flex flex-wrap gap-x-2">
               <dt className="font-display font-medium capitalize text-plum">{r}</dt>
-              <dd className="text-[#5B486F]">{ROLE_HELP[r]}</dd>
+              <dd className="text-sub">{ROLE_HELP[r]}</dd>
             </div>
           ))}
         </dl>

@@ -223,7 +223,7 @@ export function QuestionEditor({
 
         {/* Only worth the space once the wording is more than one plain line. */}
         {!isPlainQuestionText(text) ? (
-          <div className="mt-2.5 rounded-[12px] border-[1.5px] border-dashed border-ink/15 bg-white px-3.5 py-3">
+          <div className="mt-2.5 rounded-[12px] border-[1.5px] border-dashed border-ink/15 bg-surface px-3.5 py-3">
             <p className="mb-1.5 font-display text-[11px] font-medium uppercase tracking-[0.1em] text-plum-soft">
               How the student will see it
             </p>
@@ -249,7 +249,7 @@ export function QuestionEditor({
               <img
                 src={imageUrl}
                 alt={imageAlt || "Question picture"}
-                className="max-h-[130px] w-auto max-w-full rounded-[11px] border border-ink/10 bg-white object-contain"
+                className="max-h-[130px] w-auto max-w-full rounded-[11px] border border-ink/10 bg-surface object-contain"
               />
               <div className="min-w-[200px] flex-1">
                 <Field label="What the picture shows" hint="Read out instead of the picture if it cannot load.">
@@ -335,8 +335,8 @@ export function QuestionEditor({
                   className={[
                     "grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-[11px] border-[1.5px] font-display text-[12.5px] font-bold transition",
                     isCorrect(i)
-                      ? "border-moss bg-moss text-white"
-                      : "border-ink/15 bg-white text-plum-soft hover:border-moss/50",
+                      ? "border-moss bg-moss-fill text-white"
+                      : "border-ink/15 bg-surface text-plum-soft hover:border-moss/50",
                   ].join(" ")}
                   title="Tick if this option is correct"
                 >

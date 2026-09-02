@@ -320,7 +320,7 @@ export function OrganizationResults({
         title={s.name}
         sub={
           <>
-            Code <code className="rounded bg-white px-1.5 py-0.5 text-plum">{s.slug}</code>
+            Code <code className="rounded bg-surface px-1.5 py-0.5 text-plum">{s.slug}</code>
             {s.city ? ` · ${s.city}` : ""}
             {s.event_date ? ` · ${when(s.event_date, false)}` : ""} ·{" "}
             <EventChip
@@ -405,13 +405,13 @@ export function OrganizationResults({
 
       {/* ------------------------------ podium ----------------------------- */}
       {podium.length ? (
-        <section className="mb-5 rounded-xl2 border border-apricot/40 bg-gradient-to-br from-[#FFF6EC] to-[#FDEDF3] p-4">
+        <section className="mb-5 rounded-xl2 border border-apricot/40 bg-gradient-to-br from-prize-from to-prize-to p-4">
           <h2 className="mb-3 font-display text-[13px] font-medium uppercase tracking-[0.14em] text-apricot-deep">
             Winners
           </h2>
           <div className="grid gap-2.5 sm:grid-cols-3">
             {podium.map((r, i) => (
-              <div key={r.id} className="rounded-[14px] bg-white/80 px-3.5 py-3">
+              <div key={r.id} className="rounded-[14px] bg-surface/80 px-3.5 py-3">
                 <div className="mb-1 text-[20px]" aria-hidden="true">
                   {MEDALS[i]}
                 </div>
@@ -426,7 +426,7 @@ export function OrganizationResults({
               </div>
             ))}
           </div>
-          <p className="mt-3 text-[12.5px] leading-relaxed text-[#8A4A20]">
+          <p className="mt-3 text-[12.5px] leading-relaxed text-prize-ink">
             Points, then fastest answering time, then earliest submission. Students never see the
             times, so their board can differ from this order.
           </p>
@@ -450,8 +450,8 @@ export function OrganizationResults({
             className={[
               "rounded-[11px] px-3.5 py-2 font-display text-[13.5px] font-medium transition",
               tab === key
-                ? "bg-plum text-white"
-                : "border-[1.5px] border-ink/10 bg-white text-plum hover:bg-petal",
+                ? "bg-plum-fill text-white"
+                : "border-[1.5px] border-ink/10 bg-surface text-plum hover:bg-petal",
             ].join(" ")}
           >
             {label}
@@ -717,7 +717,7 @@ export function OrganizationResults({
               <h3 className="mb-1.5 font-display text-[15px] font-medium text-coral">
                 Clearing and deleting
               </h3>
-              <p className="mb-3.5 text-[13.5px] leading-relaxed text-[#6B4046]">
+              <p className="mb-3.5 text-[13.5px] leading-relaxed text-prize-ink">
                 Nothing is erased: deleted records move to the Deleted page and can be put
                 back. Download the Excel sheet anyway if you want a copy on your machine.
               </p>
@@ -880,7 +880,7 @@ function DangerModal({
       title={mode === "all" ? "Delete this organization" : "Clear all entries"}
       onClose={onClose}
     >
-      <p className="mb-3 text-[14.5px] leading-relaxed text-[#463359]">
+      <p className="mb-3 text-[14.5px] leading-relaxed text-body">
         {mode === "all" ? (
           <>
             This removes the organization, its code <b>{organization.slug}</b>, and all {count} registered

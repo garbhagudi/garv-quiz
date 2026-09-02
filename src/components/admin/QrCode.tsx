@@ -46,7 +46,7 @@ export function QrCode({
   if (!isAbsolute(value)) {
     return (
       <div
-        className={`rounded-[10px] border border-dashed border-ink/15 bg-white ${className ?? ""}`}
+        className={`rounded-[10px] border border-dashed border-ink/15 bg-surface ${className ?? ""}`}
         aria-hidden="true"
       />
     );

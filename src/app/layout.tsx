@@ -26,15 +26,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Tints the phone browser chrome to match the ground the page sits on.
+  // Tints the phone browser chrome to match the ground the page sits on. One
+  // colour, because the page is light in both themes - see globals.css.
   themeColor: "#fff7f8",
-  // This palette is light on purpose - blush ground, cream card, plum ink - and
-  // has no dark counterpart. Without saying so, Chrome on Android, Samsung
-  // Internet and others treat the silence as "no opinion" and darken the page
-  // themselves, which turns the brand crimson and the join QR into something
-  // else. Declared here, in the head, so it is known before any stylesheet
-  // loads; repeated in globals.css so it holds for every element after.
-  colorScheme: "light",
+  // Declares that the page handles dark mode itself. It does: by staying
+  // light. This is what stops Samsung Internet and Chrome force-darkening it
+  // with their own transformation - they use a page's dark styles when it says
+  // it has them, and invent their own when it does not.
+  colorScheme: "light dark",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

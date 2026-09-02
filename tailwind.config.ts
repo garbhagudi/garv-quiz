@@ -10,28 +10,42 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#241539",
-        // The GARV crimson. `light` and `dark` only exist to give the page
-        // background depth and to keep small text on it legible; `DEFAULT` is
-        // the brand colour itself, taken from the GARV wordmark.
-        //
-        // `tint` is the pale pink that small print on the crimson ground is set
-        // in — 4:1 against DEFAULT at the top of the page and 7.5:1 against
-        // `dark` at the foot, which is where that print actually sits.
+        // Every value is a CSS variable set in src/app/globals.css, once for
+        // light and once under prefers-color-scheme: dark. <alpha-value> keeps
+        // the opacity modifiers (bg-petal/60, border-ink/10) working as before.
+        ink: "rgb(var(--c-ink) / <alpha-value>)",
+        body: "rgb(var(--c-body) / <alpha-value>)",
+        sub: "rgb(var(--c-sub) / <alpha-value>)",
+        muted: "rgb(var(--c-muted) / <alpha-value>)",
+        // The GARV crimson. `light`, `dark` and `tint` are the crimson band on
+        // the home page and its small print, which stays crimson in both
+        // themes, so they are the one set of colours left as plain hex.
         brand: {
-          DEFAULT: "#d90743",
+          DEFAULT: "rgb(var(--c-brand) / <alpha-value>)",
+          deep: "rgb(var(--c-brand-deep) / <alpha-value>)",
           light: "#f01a54",
-          deep: "#ad0535",
           dark: "#8b0429",
           tint: "#ffd9e2",
         },
-        plum: { DEFAULT: "#4C2A6E", soft: "#6B4691", deep: "#3A2058" },
-        apricot: { DEFAULT: "#F5A25D", deep: "#E08A3C" },
-        coral: "#E2685B",
-        moss: "#3F8F6F",
-        cream: "#FFFBF6",
-        petal: "#F2EBFA",
-        muted: "#7A6790",
+        // `plum` is the ink of headings; `fill` is the ground under white button
+        // text. One colour in light, two in dark - see globals.css.
+        plum: {
+          DEFAULT: "rgb(var(--c-plum) / <alpha-value>)",
+          soft: "rgb(var(--c-plum-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-plum-deep) / <alpha-value>)",
+          fill: "rgb(var(--c-plum-fill) / <alpha-value>)",
+          "fill-deep": "rgb(var(--c-plum-fill-deep) / <alpha-value>)",
+        },
+        apricot: { DEFAULT: "rgb(var(--c-apricot) / <alpha-value>)", deep: "rgb(var(--c-apricot-deep) / <alpha-value>)" },
+        coral: "rgb(var(--c-coral) / <alpha-value>)",
+        moss: { DEFAULT: "rgb(var(--c-moss) / <alpha-value>)", fill: "rgb(var(--c-moss-fill) / <alpha-value>)" },
+        cream: "rgb(var(--c-cream) / <alpha-value>)",
+        petal: "rgb(var(--c-petal) / <alpha-value>)",
+        surface: "rgb(var(--c-surface) / <alpha-value>)",
+        ground: "rgb(var(--c-ground) / <alpha-value>)",
+        desk: "rgb(var(--c-desk) / <alpha-value>)",
+        prize: { from: "rgb(var(--c-prize-from) / <alpha-value>)", to: "rgb(var(--c-prize-to) / <alpha-value>)", ink: "rgb(var(--c-prize-ink) / <alpha-value>)" },
+        scrim: "rgb(var(--c-scrim) / <alpha-value>)",
       },
       fontFamily: {
         display: ["var(--font-display)", "Lexend", "system-ui", "sans-serif"],

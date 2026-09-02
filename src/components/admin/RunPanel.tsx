@@ -277,7 +277,7 @@ function JoinBlock({ shareUrl }: { shareUrl: string }) {
 
       {big ? (
         <div
-          className="fixed inset-0 z-50 flex cursor-zoom-out flex-col items-center justify-center gap-6 bg-white p-6"
+          className="fixed inset-0 z-50 flex cursor-zoom-out flex-col items-center justify-center gap-6 bg-surface p-6"
           onClick={() => setBig(false)}
           role="dialog"
           aria-modal="true"
@@ -309,7 +309,7 @@ const RunTile = ({
   label: string;
   tone?: "plain" | "good" | "warn";
 }) => (
-  <div className="rounded-xl2 border border-ink/10 bg-white px-3 py-3.5 text-center">
+  <div className="rounded-xl2 border border-ink/10 bg-surface px-3 py-3.5 text-center">
     <div
       className={[
         "font-display text-[30px] font-bold leading-none tabular-nums",

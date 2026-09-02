@@ -194,7 +194,7 @@ export function QuestionsClient({ canWrite }: { canWrite: boolean }) {
                       "w-full rounded-[12px] border-[1.5px] px-3 py-2.5 text-left transition",
                       activeSet === s.id
                         ? "border-plum/40 bg-petal"
-                        : "border-ink/10 bg-white hover:border-plum/25",
+                        : "border-ink/10 bg-surface hover:border-plum/25",
                     ].join(" ")}
                   >
                     <span className="block font-display text-[14px] font-medium leading-snug text-ink">
@@ -310,7 +310,7 @@ export function QuestionsClient({ canWrite }: { canWrite: boolean }) {
                   key={q.id}
                   className={[
                     "rounded-xl2 border-[1.5px] p-3.5",
-                    q.is_active ? "border-ink/10 bg-white" : "border-ink/10 bg-ink/[0.03] opacity-70",
+                    q.is_active ? "border-ink/10 bg-surface" : "border-ink/10 bg-ink/[0.03] opacity-70",
                   ].join(" ")}
                 >
                   <div className="flex items-start gap-3">
@@ -347,7 +347,7 @@ export function QuestionsClient({ canWrite }: { canWrite: boolean }) {
                           <img
                             src={q.image_url}
                             alt={q.image_alt || "Question picture"}
-                            className="h-16 w-16 shrink-0 rounded-[10px] border border-ink/10 bg-white object-contain"
+                            className="h-16 w-16 shrink-0 rounded-[10px] border border-ink/10 bg-surface object-contain"
                           />
                         ) : null}
                         <QuestionText
@@ -363,7 +363,7 @@ export function QuestionsClient({ canWrite }: { canWrite: boolean }) {
                               key={k}
                               className={[
                                 "flex items-start gap-1.5 rounded-lg px-2 py-1 text-[13px] leading-snug",
-                                right ? "bg-moss/10 font-semibold text-moss" : "text-[#5B486F]",
+                                right ? "bg-moss/10 font-semibold text-moss" : "text-sub",
                               ].join(" ")}
                             >
                               <span className="font-display text-[11px] font-bold opacity-70">

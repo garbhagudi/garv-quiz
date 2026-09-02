@@ -22,7 +22,7 @@ export function PageHead({
         <h1 className="font-display text-[26px] font-bold leading-tight tracking-[-0.01em] text-plum">
           {title}
         </h1>
-        {sub ? <p className="mt-1 text-[14.5px] leading-relaxed text-[#5B486F]">{sub}</p> : null}
+        {sub ? <p className="mt-1 text-[14.5px] leading-relaxed text-sub">{sub}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
@@ -52,7 +52,7 @@ export function Stats({
           key={s.label}
           onClick={s.onClick}
           className={[
-            "rounded-xl2 border border-ink/10 bg-white px-3.5 py-3 text-left",
+            "rounded-xl2 border border-ink/10 bg-surface px-3.5 py-3 text-left",
             s.onClick ? "cursor-pointer transition hover:border-plum/40 hover:bg-petal" : "",
           ].join(" ")}
         >
@@ -201,7 +201,7 @@ export function Toggle({
     <label
       className={[
         "flex cursor-pointer items-start gap-3 rounded-[14px] border-[1.5px] px-3.5 py-3 transition",
-        checked ? "border-plum/35 bg-petal" : "border-ink/10 bg-white",
+        checked ? "border-plum/35 bg-petal" : "border-ink/10 bg-surface",
         disabled ? "cursor-not-allowed opacity-60" : "hover:border-plum/30",
       ].join(" ")}
     >
@@ -246,7 +246,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/55 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-scrim/55 p-4 sm:items-center"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

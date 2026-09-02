@@ -10,6 +10,9 @@ import type { ReactNode } from "react";
  * and "The art of ART" stop being readable much under 240px.
  */
 export function BrandBar() {
+  // Stays true white in both themes: the black GARV wordmark only works on
+  // white, and this plate is what kept it readable when a phone darkened
+  // everything else around it.
   return (
     <header className="mb-3.5 flex items-center justify-center rounded-[20px] border border-brand/15 bg-white px-4 py-3.5 shadow-bar sm:px-5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -138,10 +141,10 @@ export const Loading = ({ label }: { label: string }) => (
 /** The gift/prize note, carried over from the original. */
 export const PrizeNote = ({ text }: { text: string }) =>
   text ? (
-    <div className="mb-1 flex items-center gap-3 rounded-2xl bg-gradient-to-br from-[#FFF1E2] to-[#FDE8F1] px-4 py-3.5">
+    <div className="mb-1 flex items-center gap-3 rounded-2xl bg-gradient-to-br from-prize-from to-prize-to px-4 py-3.5">
       <span className="text-[21px]" aria-hidden="true">
         🎁
       </span>
-      <span className="text-[14.5px] font-bold leading-snug text-[#8A4A20]">{text}</span>
+      <span className="text-[14.5px] font-bold leading-snug text-prize-ink">{text}</span>
     </div>
   ) : null;

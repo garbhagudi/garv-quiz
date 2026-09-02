@@ -2,6 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===========================================================================
+   The palette, as tokens.
+
+   Every colour the app uses is a CSS variable holding an "R G B" triplet, and
+   tailwind.config.ts wraps each one as rgb(var(--c-x) / <alpha-value>) - so
+   text-plum, bg-petal/60 and border-ink/10 all read from one place.
+
+   There is one palette, and it is light. That is the brand: blush ground, cream
+   card, plum ink, GARV crimson. Everybody sees it, whatever their phone is set
+   to.
+
+   Why there is still a dark block below, and why it says the same thing: phones
+   in dark mode do not take no for an answer. Samsung Internet documents that it
+   applies the developer's dark styles if the page declares it has them, and
+   otherwise applies its own transformation - which turned the cream card
+   charcoal, plum to lilac, and made the black GARV wordmark vanish into its
+   darkened bar. The "only light" opt-out is honoured only behind an
+   experimental flag. So the page declares dark support, and its dark styles
+   are the light palette. The browser applies them and leaves the page alone.
+
+   Do not put different values in the dark block. Its whole job is to exist.
+   =========================================================================== */
+:root {
+  color-scheme: light dark;
+  --c-ink: 36 21 57;
+  --c-body: 70 51 89;
+  --c-sub: 91 72 111;
+  --c-muted: 122 103 144;
+  --c-brand: 217 7 67;
+  --c-brand-deep: 173 5 53;
+  --c-plum: 76 42 110;
+  --c-plum-soft: 107 70 145;
+  --c-plum-deep: 58 32 88;
+  --c-plum-fill: 76 42 110;
+  --c-plum-fill-deep: 58 32 88;
+  --c-apricot: 245 162 93;
+  --c-apricot-deep: 224 138 60;
+  --c-coral: 226 104 91;
+  --c-moss: 63 143 111;
+  --c-moss-fill: 63 143 111;
+  --c-cream: 255 251 246;
+  --c-petal: 242 235 250;
+  --c-surface: 255 255 255;
+  --c-ground: 255 247 248;
+  --c-desk: 242 235 250;
+  --c-prize-from: 255 241 226;
+  --c-prize-to: 253 232 241;
+  --c-prize-ink: 138 74 32;
+  --c-scrim: 36 21 57;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-ink: 36 21 57;
+    --c-body: 70 51 89;
+    --c-sub: 91 72 111;
+    --c-muted: 122 103 144;
+    --c-brand: 217 7 67;
+    --c-brand-deep: 173 5 53;
+    --c-plum: 76 42 110;
+    --c-plum-soft: 107 70 145;
+    --c-plum-deep: 58 32 88;
+    --c-plum-fill: 76 42 110;
+    --c-plum-fill-deep: 58 32 88;
+    --c-apricot: 245 162 93;
+    --c-apricot-deep: 224 138 60;
+    --c-coral: 226 104 91;
+    --c-moss: 63 143 111;
+    --c-moss-fill: 63 143 111;
+    --c-cream: 255 251 246;
+    --c-petal: 242 235 250;
+    --c-surface: 255 255 255;
+    --c-ground: 255 247 248;
+    --c-desk: 242 235 250;
+    --c-prize-from: 255 241 226;
+    --c-prize-to: 253 232 241;
+    --c-prize-ink: 138 74 32;
+    --c-scrim: 36 21 57;
+  }
+}
+
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
@@ -9,10 +90,6 @@
 
   html {
     -webkit-text-size-adjust: 100%;
-    /* Deliberately light, with no dark theme - see the viewport export in
-       app/layout.tsx. Stops browsers auto-darkening the page and keeps native
-       controls (select lists, the date picker, scrollbars) light inside it. */
-    color-scheme: light;
   }
 
   body {
@@ -27,6 +104,9 @@
   select,
   textarea {
     font-size: 16px; /* stops iOS Safari zooming in on focus */
+    /* The root declares light dark so browsers stop force-darkening the page,
+       but the page is light - so the controls on it must be too. */
+    color-scheme: light;
   }
 }
 
@@ -37,13 +117,12 @@
      directly on it is inked dark — see BrandBar and Stage in
      src/components/Stage.tsx. */
   .surface-stage {
-    @apply min-h-screen;
-    background: #fff7f8;
+    @apply min-h-screen bg-ground;
   }
 
   /* The admin workspace is a light room — it gets read all day, not for 5 minutes. */
   .surface-desk {
-    @apply min-h-screen bg-petal;
+    @apply min-h-screen bg-desk;
   }
 
   /* On the blush ground the cream is only a hair darker than the page, so the
@@ -54,7 +133,7 @@
   }
 
   .panel {
-    @apply rounded-xl2 border border-ink/10 bg-white p-5 shadow-sm;
+    @apply rounded-xl2 border border-ink/10 bg-surface p-5 shadow-sm;
   }
 
   .eyebrow {
@@ -66,14 +145,14 @@
   }
 
   .input {
-    @apply w-full rounded-[14px] border-[1.5px] border-ink/10 bg-white px-3.5 py-3
+    @apply w-full rounded-[14px] border-[1.5px] border-ink/10 bg-surface px-3.5 py-3
            font-body text-base font-semibold text-ink
            placeholder:font-normal placeholder:text-muted/60
            focus:border-transparent focus:outline-none focus:ring-[2.5px] focus:ring-apricot;
   }
 
   .input-sm {
-    @apply w-full rounded-[10px] border-[1.5px] border-ink/10 bg-white px-3 py-2
+    @apply w-full rounded-[10px] border-[1.5px] border-ink/10 bg-surface px-3 py-2
            font-body text-[15px] font-semibold text-ink
            focus:border-transparent focus:outline-none focus:ring-2 focus:ring-apricot;
   }
@@ -86,7 +165,7 @@
   }
 
   .btn-primary {
-    @apply btn bg-plum text-white hover:bg-plum-deep;
+    @apply btn bg-plum-fill text-white hover:bg-plum-fill-deep;
   }
 
   .btn-accent {
